@@ -2,7 +2,7 @@
 
 I want a playable character with the following components:
 
-- Active Rigidbody
+- Active Ragdoll
 - Procedurally Animated Steps
 - Balance System
 - Multiplayer Ready
