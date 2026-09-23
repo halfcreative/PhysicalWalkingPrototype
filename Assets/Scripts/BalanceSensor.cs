@@ -50,7 +50,6 @@ public class BalanceSensor : MonoBehaviour
         {
             weightedPosition += rb.mass * rb.worldCenterOfMass;
             weightedVelocity += rb.mass * rb.linearVelocity;
-            Debug.Log("Is Sleeping: " + rb.IsSleeping());
         }
 
         COM = weightedPosition / totalMass;

@@ -1,5 +1,6 @@
 using UnityEngine;
 
+[DefaultExecutionOrder(-50)]
 public class BalanceController : MonoBehaviour
 {
     [SerializeField] BalanceSensor balanceSensor;
@@ -10,6 +11,16 @@ public class BalanceController : MonoBehaviour
     [SerializeField] float footCenterZ = 0f;
     [SerializeField] float manualPitch = 0f; // Temporary
     [SerializeField] float gain = 0f;
+    [SerializeField] float standingHipHeight = 0.85f;
+
+    // Where PlayerRig puts the ghost hips, measured up from the support plane.
+    public float StandingHipHeight => standingHipHeight;
+
+    // The ankle strategy: the small trim that handles COM errors too small to be worth a step.
+    // Published rather than applied, so that LegDrive stays the only thing writing an ankle joint.
+    // It composes into the foot rotation there.
+    public Quaternion AnkleTrim { get; private set; } = Quaternion.identity;
+
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
@@ -27,8 +38,7 @@ public class BalanceController : MonoBehaviour
         float pitch = Mathf.Clamp(gain * error, -maxAngle, maxAngle) + manualPitch;
         // Debug.Log("pitch: " + pitch);
 
-        leftFoot.SetAnkleTarget(pitch);
-        rightFoot.SetAnkleTarget(pitch);
+        AnkleTrim = Quaternion.Euler(pitch, 0f, 0f);
 
     }
 }
