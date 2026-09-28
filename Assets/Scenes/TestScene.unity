@@ -3631,8 +3631,8 @@ MonoBehaviour:
   footCenterZ: 0.05
   gain: 0
   standingHipHeight: 0.85
-  uprightSpring: 400
-  uprightDamper: 70
+  uprightSpring: 1000
+  uprightDamper: 120
 --- !u!114 &1807426355
 MonoBehaviour:
   m_ObjectHideFlags: 0
