@@ -7,9 +7,10 @@ public class BalanceController : MonoBehaviour
     [SerializeField] FootController leftFoot;
     [SerializeField] FootController rightFoot;
     [SerializeField] Rigidbody pelvis;
+    [SerializeField] FootPlacement leftPlacement;
+    [SerializeField] FootPlacement rightPlacement;
 
     [SerializeField] float maxAngle = 15f;
-    [SerializeField] float footCenterZ = 0f;
     [SerializeField] float gain = 0f;
     [SerializeField] float standingHipHeight = 0.85f;
 
@@ -42,8 +43,11 @@ public class BalanceController : MonoBehaviour
     // Update is called once per frame
     void FixedUpdate()
     {
-        Vector3 local = transform.InverseTransformPoint(balanceSensor.COMPrediction);
-        float error = local.z - footCenterZ;
+        // Forward error of the capture point from the planted soles, along the body's facing. Read off
+        // the feet rather than a fixed offset, so it still means something once the feet have moved.
+        // FootPlacement runs later in the tick, so this is last tick's stance, which is fine for a trim.
+        Vector3 forward = Vector3.ProjectOnPlane(pelvis.rotation * Vector3.forward, Vector3.up).normalized;
+        float error = Vector3.Dot(balanceSensor.COMPrediction - StanceCentre(), forward);
 
         // Debug.Log("COM Velocity" + balanceSensor.COMVelocity);
         // Debug.Log("error: " + error);
@@ -53,6 +57,14 @@ public class BalanceController : MonoBehaviour
         AnkleTrim = Quaternion.Euler(pitch, 0f, 0f);
 
         HoldPelvisUpright();
+    }
+
+    // The planted soles: both while both are down, otherwise the one carrying the body.
+    Vector3 StanceCentre()
+    {
+        if (leftPlacement.IsStepping) return rightPlacement.SupportPoint;
+        if (rightPlacement.IsStepping) return leftPlacement.SupportPoint;
+        return (leftPlacement.SupportPoint + rightPlacement.SupportPoint) * 0.5f;
     }
 
     // A PD torque that tips the pelvis back toward vertical. AddTorque is legitimate here and nowhere

@@ -1046,6 +1046,7 @@ GameObject:
   m_Component:
   - component: {fileID: 401535635}
   - component: {fileID: 401535636}
+  - component: {fileID: 401535637}
   m_Layer: 0
   m_Name: RFootTarget
   m_TagString: Untagged
@@ -1080,6 +1081,36 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 48948dfe9d76b07488dacd46a7955fa1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Animation.Rigging::UnityEngine.Animations.Rigging.RigTransform
+--- !u!114 &401535637
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 401535634}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fd25c70a39026e1ce97b999921599c15, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FootPlacement
+  ghostHips: {fileID: 2083852863}
+  ghostThigh: {fileID: 521958079}
+  otherFoot: {fileID: 1443963552}
+  balanceSensor: {fileID: 1807426353}
+  playerRig: {fileID: 1807426356}
+  swingDuration: 0.3
+  stepHeight: 0.1
+  footGroundOffset: 0.1
+  soleCentreForward: 0.05
+  autoStep: 1
+  stepMargin: 0.08
+  captureGain: 1
+  stanceHalfWidth: 0.11
+  doubleSupportDwell: 0.12
+  strideReachSafety: 0.98
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 4294967039
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -2441,8 +2472,6 @@ Transform:
   m_Children:
   - {fileID: 1443963550}
   - {fileID: 401535635}
-  - {fileID: 1695630307}
-  - {fileID: 1006297221}
   - {fileID: 895388687}
   - {fileID: 655012083}
   - {fileID: 817742105}
@@ -2475,11 +2504,11 @@ Transform:
   m_GameObject: {fileID: 1006297220}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.11, y: 0.5, z: 0.2}
+  m_LocalPosition: {x: 0.11, y: -0.42000002, z: 0.2}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 981669404}
+  m_Father: {fileID: 2083852863}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1006297222
 MonoBehaviour:
@@ -3014,6 +3043,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1443963550}
   - component: {fileID: 1443963551}
+  - component: {fileID: 1443963552}
   m_Layer: 0
   m_Name: LFootTarget
   m_TagString: Untagged
@@ -3048,6 +3078,36 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 48948dfe9d76b07488dacd46a7955fa1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Animation.Rigging::UnityEngine.Animations.Rigging.RigTransform
+--- !u!114 &1443963552
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1443963549}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fd25c70a39026e1ce97b999921599c15, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FootPlacement
+  ghostHips: {fileID: 2083852863}
+  ghostThigh: {fileID: 12589339}
+  otherFoot: {fileID: 401535637}
+  balanceSensor: {fileID: 1807426353}
+  playerRig: {fileID: 1807426356}
+  swingDuration: 0.3
+  stepHeight: 0.1
+  footGroundOffset: 0.1
+  soleCentreForward: 0.05
+  autoStep: 1
+  stepMargin: 0.08
+  captureGain: 1
+  stanceHalfWidth: 0.11
+  doubleSupportDwell: 0.12
+  strideReachSafety: 0.98
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 4294967039
 --- !u!1 &1453067851
 GameObject:
   m_ObjectHideFlags: 0
@@ -3538,11 +3598,11 @@ Transform:
   m_GameObject: {fileID: 1695630306}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.11, y: 0.5, z: 0.2}
+  m_LocalPosition: {x: -0.11, y: -0.42000002, z: 0.2}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 981669404}
+  m_Father: {fileID: 2083852863}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1695630308
 MonoBehaviour:
@@ -3571,6 +3631,7 @@ GameObject:
   - component: {fileID: 1807426356}
   - component: {fileID: 1807426358}
   - component: {fileID: 1807426357}
+  - component: {fileID: 1807426359}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -3627,12 +3688,14 @@ MonoBehaviour:
   leftFoot: {fileID: 918043730}
   rightFoot: {fileID: 692237259}
   pelvis: {fileID: 735725823}
+  leftPlacement: {fileID: 1443963552}
+  rightPlacement: {fileID: 401535637}
   maxAngle: 6
-  footCenterZ: 0.05
-  gain: 0
+  gain: 20
   standingHipHeight: 0.85
   uprightSpring: 1000
   uprightDamper: 120
+  maxUprightTorque: 150
 --- !u!114 &1807426355
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3645,7 +3708,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2dbb15bf4001c48729443a7efefd37e9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PushTester
-  pushSpeed: 0.1
+  pushSpeed: 0.5
 --- !u!114 &1807426356
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3715,6 +3778,22 @@ MonoBehaviour:
   ghostShin: {fileID: 1562563273}
   ghostFoot: {fileID: 599828190}
   balanceController: {fileID: 1807426354}
+--- !u!114 &1807426359
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1807426351}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5fd16319178373eeabf007b9198c7aa, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::StepTester
+  leftFoot: {fileID: 1443963552}
+  rightFoot: {fileID: 401535637}
+  ghostHips: {fileID: 2083852863}
+  stepDistance: 0.2
 --- !u!1 &2083852862
 GameObject:
   m_ObjectHideFlags: 0
@@ -3746,6 +3825,8 @@ Transform:
   m_Children:
   - {fileID: 12589339}
   - {fileID: 521958079}
+  - {fileID: 1695630307}
+  - {fileID: 1006297221}
   m_Father: {fileID: 1516610860}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
