@@ -25,6 +25,9 @@ public class PlayerRig : MonoBehaviour
 
     [SerializeField] float footGroundOffset = 0.10f;
 
+    // Ankle to sole. The IK targets the ankle, so FootPlacement lifts every target by this much.
+    public float FootGroundOffset => footGroundOffset;
+
     // Leg geometry, measured at Awake. Step 8's reach clamp reads these.
     public float L1 { get; private set; }
     public float L2 { get; private set; }

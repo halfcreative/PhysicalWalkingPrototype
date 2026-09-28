@@ -1093,24 +1093,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fd25c70a39026e1ce97b999921599c15, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FootPlacement
+  playerRig: {fileID: 1807426356}
+  balanceSensor: {fileID: 1807426353}
+  otherFoot: {fileID: 1443963552}
   ghostHips: {fileID: 2083852863}
   ghostThigh: {fileID: 521958079}
-  otherFoot: {fileID: 1443963552}
-  balanceSensor: {fileID: 1807426353}
-  playerRig: {fileID: 1807426356}
-  swingDuration: 0.3
-  stepHeight: 0.1
-  footGroundOffset: 0.1
-  soleCentreForward: 0.05
-  autoStep: 1
-  stepMargin: 0.08
+  kneeHint: {fileID: 1006297221}
   captureGain: 1
-  stanceHalfWidth: 0.11
-  doubleSupportDwell: 0.12
-  strideReachSafety: 0.98
-  groundMask:
-    serializedVersion: 2
-    m_Bits: 4294967039
+  stepMargin: 0.08
+  stepHeight: 0.1
+  maxSwingDuration: 0.7
+  autoStep: 1
+  logSteps: 0
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -3090,24 +3084,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fd25c70a39026e1ce97b999921599c15, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FootPlacement
+  playerRig: {fileID: 1807426356}
+  balanceSensor: {fileID: 1807426353}
+  otherFoot: {fileID: 401535637}
   ghostHips: {fileID: 2083852863}
   ghostThigh: {fileID: 12589339}
-  otherFoot: {fileID: 401535637}
-  balanceSensor: {fileID: 1807426353}
-  playerRig: {fileID: 1807426356}
-  swingDuration: 0.3
-  stepHeight: 0.1
-  footGroundOffset: 0.1
-  soleCentreForward: 0.05
-  autoStep: 1
-  stepMargin: 0.08
+  kneeHint: {fileID: 1695630307}
   captureGain: 1
-  stanceHalfWidth: 0.11
-  doubleSupportDwell: 0.12
-  strideReachSafety: 0.98
-  groundMask:
-    serializedVersion: 2
-    m_Bits: 4294967039
+  stepMargin: 0.08
+  stepHeight: 0.1
+  maxSwingDuration: 0.7
+  autoStep: 1
+  logSteps: 0
 --- !u!1 &1453067851
 GameObject:
   m_ObjectHideFlags: 0
@@ -3685,16 +3673,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BalanceController
   balanceSensor: {fileID: 1807426353}
-  leftFoot: {fileID: 918043730}
-  rightFoot: {fileID: 692237259}
   pelvis: {fileID: 735725823}
   leftPlacement: {fileID: 1443963552}
   rightPlacement: {fileID: 401535637}
-  maxAngle: 6
   gain: 20
+  maxAngle: 6
   standingHipHeight: 0.85
-  uprightSpring: 1000
-  uprightDamper: 120
   maxUprightTorque: 150
 --- !u!114 &1807426355
 MonoBehaviour:

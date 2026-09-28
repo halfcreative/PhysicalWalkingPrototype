@@ -3,23 +3,22 @@ using UnityEngine;
 [DefaultExecutionOrder(-50)]
 public class BalanceController : MonoBehaviour
 {
-    [SerializeField] BalanceSensor balanceSensor;
-    [SerializeField] FootController leftFoot;
-    [SerializeField] FootController rightFoot;
-    [SerializeField] Rigidbody pelvis;
-    [SerializeField] FootPlacement leftPlacement;
-    [SerializeField] FootPlacement rightPlacement;
-
-    [SerializeField] float maxAngle = 15f;
-    [SerializeField] float gain = 0f;
-    [SerializeField] float standingHipHeight = 0.85f;
-
     // Real N·m per radian and N·m·s per radian, applied with ForceMode.Force. Gravity tips the upper
     // body over the hips at ~103 N·m/rad, and the hip drives don't resist that, so the spring must
     // clear it with margin. 120 is critical damping for the ~900 left over against the ~4.1 kg·m²
     // upper body: 2·√(897 × 4.1) ≈ 120. See resume-here §5.1–5.2.
-    [SerializeField] float uprightSpring = 1000f;
-    [SerializeField] float uprightDamper = 120f;
+    const float UprightSpring = 1000f;
+    const float UprightDamper = 120f;
+
+    [SerializeField] BalanceSensor balanceSensor;
+    [SerializeField] Rigidbody pelvis;
+    [SerializeField] FootPlacement leftPlacement;
+    [SerializeField] FootPlacement rightPlacement;
+
+    // Degrees of ankle trim per metre of capture-point error, and its limit.
+    [SerializeField] float gain = 20f;
+    [SerializeField] float maxAngle = 6f;
+    [SerializeField] float standingHipHeight = 0.85f;
 
     // Caps the upright torque so it can hold the upper body over the hips but not the whole body
     // over the feet. Tipping the full 62 kg about the ankles costs ~580 N·m/rad, i.e. ~150 N·m at 15°.
@@ -34,13 +33,6 @@ public class BalanceController : MonoBehaviour
     // It composes into the foot rotation there.
     public Quaternion AnkleTrim { get; private set; } = Quaternion.identity;
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
-    {
-
-    }
-
-    // Update is called once per frame
     void FixedUpdate()
     {
         // Forward error of the capture point from the planted soles, along the body's facing. Read off
@@ -49,11 +41,7 @@ public class BalanceController : MonoBehaviour
         Vector3 forward = Vector3.ProjectOnPlane(pelvis.rotation * Vector3.forward, Vector3.up).normalized;
         float error = Vector3.Dot(balanceSensor.COMPrediction - StanceCentre(), forward);
 
-        // Debug.Log("COM Velocity" + balanceSensor.COMVelocity);
-        // Debug.Log("error: " + error);
         float pitch = Mathf.Clamp(gain * error, -maxAngle, maxAngle);
-        // Debug.Log("pitch: " + pitch);
-
         AnkleTrim = Quaternion.Euler(pitch, 0f, 0f);
 
         HoldPelvisUpright();
@@ -77,7 +65,7 @@ public class BalanceController : MonoBehaviour
     void HoldPelvisUpright()
     {
         Vector3 axisErr = Vector3.Cross(pelvis.rotation * Vector3.up, Vector3.up);
-        Vector3 torque = axisErr * uprightSpring - pelvis.angularVelocity * uprightDamper;
+        Vector3 torque = axisErr * UprightSpring - pelvis.angularVelocity * UprightDamper;
         pelvis.AddTorque(Vector3.ClampMagnitude(torque, maxUprightTorque), ForceMode.Force);
     }
 }
