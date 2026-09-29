@@ -47,8 +47,8 @@ public class BalanceSensor : MonoBehaviour
         float height = Mathf.Max(CenterOfMass.y, MinPendulumHeight);
         float omega = Mathf.Sqrt(Gravity / height);
 
-        Vector3 groundCom = new(CenterOfMass.x, 0f, CenterOfMass.z);
-        Vector3 groundVelocity = new(CenterOfMassVelocity.x, 0f, CenterOfMassVelocity.z);
+        Vector3 groundCom = CenterOfMass.Flat();
+        Vector3 groundVelocity = CenterOfMassVelocity.Flat();
         CapturePoint = groundCom + groundVelocity / omega;
     }
 
@@ -56,7 +56,7 @@ public class BalanceSensor : MonoBehaviour
     {
         if (!Application.isPlaying) return;
 
-        Vector3 groundCom = new(CenterOfMass.x, 0f, CenterOfMass.z);
+        Vector3 groundCom = CenterOfMass.Flat();
 
         Gizmos.color = Color.white;
         Gizmos.DrawSphere(CenterOfMass, 0.1f);

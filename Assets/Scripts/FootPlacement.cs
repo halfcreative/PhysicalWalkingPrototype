@@ -21,7 +21,8 @@ public class FootPlacement : MonoBehaviour
 {
     const float Gravity = 9.81f;
 
-    // Gait (DrunkWalkHome). Step length = c · Fr^β · L / 2 with Fr = v² / (gL); c is fitted so a 0.9 m
+    // --- Gait & Cadence (DrunkWalkHome) ---
+    // Step length = c · Fr^β · L / 2 with Fr = v² / (gL); c is fitted so a 0.9 m
     // leg reproduces the generic adult fit, so on our 0.82 m leg it is dynamic similarity, not a guess.
     const float FroudeCoefficient = 2.35f;
     const float FroudeExponent = 0.25f;
@@ -36,14 +37,17 @@ public class FootPlacement : MonoBehaviour
     // Below this speed there is no direction of travel, so no stride ceiling and no stride to measure.
     const float CrawlSpeed = 0.15f;
 
-    // Swing arc (DrunkWalkHome). Lift varies a little per step, and may not exceed this many metres per
-    // metre the step travels, so a short shuffle doesn't lift like a full stride and read as marching.
+    // --- Swing Arc & Lift ---
+    // Lift varies a little per step, and may not exceed this many metres per metre the step travels,
+    // so a short shuffle doesn't lift like a full stride and read as marching.
     const float StepHeightVariance = 0.03f;
     const float MaxLiftPerStepLength = 0.8f;
     // How hard an in-flight foot re-aims at the moving capture point, faded to zero by landing.
     const float RetargetStrength = 10f;
     const float KneeHintDistance = 0.3f;
+    const float KneeDirEpsilonSqr = 1e-6f;
 
+    // --- Stance Geometry & Reach Limits ---
     // The foot box's centre sits this far ahead of the ankle. Balance is judged against the sole, not
     // the ankle, so this is where "the foot" is for the capture point and the ankle trim.
     const float SoleCentreForward = 0.05f;
@@ -58,8 +62,13 @@ public class FootPlacement : MonoBehaviour
     // uses 0.75 m of drop against a 0.82 m leg. 0.98 allows ~0.29 m of horizontal reach from the hip.
     // See resume-here §5.3.
     const float MaxLegExtension = 0.98f;
+
+    // --- Timing & Step Selection Margins ---
     // No steps while the body drops onto its legs at spawn. Without it, the settling lean steps once.
     const float SpawnSettleTime = 1.0f;
+    // Preference margin for distance to capture point and planting recency when selecting which foot steps.
+    const float TurnDistanceMargin = 0.02f;
+    const float TurnTimeMargin = 0.01f;
 
     [Header("Rig")]
     [SerializeField] PlayerRig playerRig;
@@ -189,7 +198,7 @@ public class FootPlacement : MonoBehaviour
     // Which foot steps is a decision, not a race: without one both feet chase the same threshold and it
     // shuffles. Falling mostly sideways, the foot on that side steps out, because the trailing foot
     // would have to cross over. Otherwise the trailing foot steps: the one further from the capture
-    // point, with DrunkWalkHome's 2 cm deadband and tie-breaks (the older plant, then the left foot) so
+    // point, with a 2 cm margin and tie-breaks (the older plant, then the left foot) so
     // exactly one foot is ever the candidate and a parallel stance alternates rather than repeats.
     bool IsMyTurn(Vector3 error, Vector3 capture, Vector3 mySole, Vector3 otherSole)
     {
@@ -201,11 +210,11 @@ public class FootPlacement : MonoBehaviour
 
         float myDistance = (capture - mySole).magnitude;
         float otherDistance = (capture - otherSole).magnitude;
-        if (myDistance > otherDistance + 0.02f) return true;
-        if (otherDistance > myDistance + 0.02f) return false;
+        if (myDistance > otherDistance + TurnDistanceMargin) return true;
+        if (otherDistance > myDistance + TurnDistanceMargin) return false;
 
-        if (LastLandTime < otherFoot.LastLandTime - 0.01f) return true;
-        if (otherFoot.LastLandTime < LastLandTime - 0.01f) return false;
+        if (LastLandTime < otherFoot.LastLandTime - TurnTimeMargin) return true;
+        if (otherFoot.LastLandTime < LastLandTime - TurnTimeMargin) return false;
         return side < 0f;
     }
 
@@ -370,7 +379,7 @@ public class FootPlacement : MonoBehaviour
         Vector3 forward = Forward;
 
         Vector3 knee = Vector3.Cross((ankle - hip).normalized, ghostHips.right);
-        knee = knee.sqrMagnitude > 1e-6f ? knee.normalized : forward;
+        knee = knee.sqrMagnitude > KneeDirEpsilonSqr ? knee.normalized : forward;
 
         float ahead = Vector3.Dot(knee, forward);
         if (ahead < 0f) knee -= 2f * ahead * forward;
@@ -380,7 +389,7 @@ public class FootPlacement : MonoBehaviour
 
     // --- Helpers ---------------------------------------------------------------------------------------
 
-    static Vector3 Flat(Vector3 v) => new(v.x, 0f, v.z);
+    static Vector3 Flat(Vector3 v) => v.Flat();
 
     static Vector3 ClosestOnSegment(Vector3 p, Vector3 a, Vector3 b)
     {

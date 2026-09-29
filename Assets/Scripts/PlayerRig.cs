@@ -101,9 +101,9 @@ public class PlayerRig : MonoBehaviour
     // the fallback gives a yaw ~90° off the true one: a discontinuity, but never a NaN.
     Quaternion PelvisYaw()
     {
-        Vector3 forward = Vector3.ProjectOnPlane(pelvis.rotation * Vector3.forward, Vector3.up);
+        Vector3 forward = (pelvis.rotation * Vector3.forward).Flat();
         if (forward.sqrMagnitude < 1e-6f)
-            forward = Vector3.ProjectOnPlane(pelvis.rotation * Vector3.up, Vector3.up);
+            forward = (pelvis.rotation * Vector3.up).Flat();
 
         return Quaternion.LookRotation(forward.normalized, Vector3.up);
     }

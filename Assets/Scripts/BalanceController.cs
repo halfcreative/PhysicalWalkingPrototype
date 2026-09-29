@@ -6,23 +6,27 @@ using UnityEngine;
 [DefaultExecutionOrder(-50)]
 public class BalanceController : MonoBehaviour
 {
+    [Header("Pelvis Upright Torque")]
     // Real N·m per radian and N·m·s per radian, applied with ForceMode.Force. Gravity tips the upper
     // body over the hips at ~103 N·m/rad, and the hip drives don't resist that, so the spring must
     // clear it with margin. 120 is critical damping for the ~900 left over against the ~4.1 kg·m²
     // upper body: 2·√(897 × 4.1) ≈ 120. See resume-here §5.1–5.2.
-    const float UprightSpring = 1000f;
-    const float UprightDamper = 120f;
+    [SerializeField] float uprightSpring = 1000f;
+    [SerializeField] float uprightDamper = 120f;
 
+    [Header("References")]
     [SerializeField] BalanceSensor balanceSensor;
     [SerializeField] Rigidbody pelvis;
     [SerializeField] FootPlacement leftFoot;
     [SerializeField] FootPlacement rightFoot;
 
+    [Header("Ankle Trim")]
     // Degrees of ankle pitch per metre the capture point sits ahead of (+) or behind (−) the planted
     // soles, and the most it may pitch either way.
     [SerializeField] float ankleTrimGain = 20f;
     [SerializeField] float maxAnkleTrim = 6f;
 
+    [Header("Stance")]
     // Where PlayerRig puts the ghost hips, measured up from the support plane.
     [SerializeField] float standingHipHeight = 0.85f;
 
@@ -42,7 +46,7 @@ public class BalanceController : MonoBehaviour
         // Read off the feet rather than a fixed offset, so it still means something once the feet have
         // moved. FootPlacement runs later in the tick, so this is last tick's stance, which is fine
         // for a trim.
-        Vector3 forward = Vector3.ProjectOnPlane(pelvis.rotation * Vector3.forward, Vector3.up).normalized;
+        Vector3 forward = (pelvis.rotation * Vector3.forward).Flat().normalized;
         float error = Vector3.Dot(balanceSensor.CapturePoint - StanceCentre(), forward);
 
         float pitch = Mathf.Clamp(ankleTrimGain * error, -maxAnkleTrim, maxAnkleTrim);
@@ -69,7 +73,7 @@ public class BalanceController : MonoBehaviour
     void HoldPelvisUpright()
     {
         Vector3 tiltAxis = Vector3.Cross(pelvis.rotation * Vector3.up, Vector3.up);
-        Vector3 torque = tiltAxis * UprightSpring - pelvis.angularVelocity * UprightDamper;
+        Vector3 torque = tiltAxis * uprightSpring - pelvis.angularVelocity * uprightDamper;
         pelvis.AddTorque(Vector3.ClampMagnitude(torque, maxUprightTorque), ForceMode.Force);
     }
 }
