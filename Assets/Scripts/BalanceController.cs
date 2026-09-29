@@ -6,19 +6,15 @@ using UnityEngine;
 [DefaultExecutionOrder(-50)]
 public class BalanceController : MonoBehaviour
 {
-    [Header("Pelvis Upright Torque")]
-    // Real N·m per radian and N·m·s per radian, applied with ForceMode.Force. Gravity tips the upper
-    // body over the hips at ~103 N·m/rad, and the hip drives don't resist that, so the spring must
-    // clear it with margin. 120 is critical damping for the ~900 left over against the ~4.1 kg·m²
-    // upper body: 2·√(897 × 4.1) ≈ 120. See resume-here §5.1–5.2.
-    [SerializeField] float uprightSpring = 1000f;
-    [SerializeField] float uprightDamper = 120f;
-
     [Header("References")]
     [SerializeField] BalanceSensor balanceSensor;
     [SerializeField] Rigidbody pelvis;
     [SerializeField] FootPlacement leftFoot;
     [SerializeField] FootPlacement rightFoot;
+
+    [Header("Stance")]
+    // Where PlayerRig puts the ghost hips, measured up from the support plane.
+    [SerializeField] float standingHipHeight = 0.85f;
 
     [Header("Ankle Trim")]
     // Degrees of ankle pitch per metre the capture point sits ahead of (+) or behind (−) the planted
@@ -26,10 +22,13 @@ public class BalanceController : MonoBehaviour
     [SerializeField] float ankleTrimGain = 20f;
     [SerializeField] float maxAnkleTrim = 6f;
 
-    [Header("Stance")]
-    // Where PlayerRig puts the ghost hips, measured up from the support plane.
-    [SerializeField] float standingHipHeight = 0.85f;
-
+    [Header("Pelvis Upright Torque")]
+    // Real N·m per radian and N·m·s per radian, applied with ForceMode.Force. Gravity tips the upper
+    // body over the hips at ~103 N·m/rad, and the hip drives don't resist that, so the spring must
+    // clear it with margin. 120 is critical damping for the ~900 left over against the ~4.1 kg·m²
+    // upper body: 2·√(897 × 4.1) ≈ 120. Change one and re-derive the other.
+    [SerializeField] float uprightSpring = 1000f;
+    [SerializeField] float uprightDamper = 120f;
     // Caps the upright torque so it can hold the upper body over the hips but not the whole body
     // over the feet. Tipping the full 62 kg about the ankles costs ~580 N·m/rad, i.e. ~150 N·m at 15°.
     // Standing needs ~80. Uncapped, nothing could knock the character over.

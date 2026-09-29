@@ -7,12 +7,10 @@ using UnityEngine;
 // It also decides when to step: if the capture point has escaped the stance, a foot steps to it. Land
 // on it and the body stops; land short of it (captureGain < 1) and the body keeps going, which is walking.
 //
-// The gait and cadence are ported from DrunkWalkHome's FootPlacement: the Froude stride ceiling, the
-// duty-factor swing duration, the speed-faded double-support dwell, the older-plant tie-break, the
-// early-peak lift curve scaled to the step's length, the faded mid-flight re-aim, the body-local stance
-// clamp and the knee hint posing. What stays ours is the trigger: DrunkWalkHome steps when the hip has
-// travelled a stride past the foot, because its body is kinematic; ours steps when the capture point
-// leaves the stance, because ours can fall. See resume-here §5.5–5.6.
+// The trigger is the capture point, not stride length: a body that can fall has to step where it is
+// falling, not where a gait cycle says the next foot goes. Stride and cadence only shape the step once
+// it's committed: a Froude stride ceiling, a duty-factor swing duration, a speed-faded double-support
+// pause, an early-peak lift curve scaled to the step's length, and a mid-flight re-aim.
 //
 // Positions are GROUND points: the spot on the floor under the ankle. The IK target is the ankle itself,
 // so the rig's foot offset is added only when the transform is written.
@@ -21,7 +19,7 @@ public class FootPlacement : MonoBehaviour
 {
     const float Gravity = 9.81f;
 
-    // --- Gait & Cadence (DrunkWalkHome) ---
+    // --- Gait & Cadence ---
     // Step length = c · Fr^β · L / 2 with Fr = v² / (gL); c is fitted so a 0.9 m
     // leg reproduces the generic adult fit, so on our 0.82 m leg it is dynamic similarity, not a guess.
     const float FroudeCoefficient = 2.35f;
@@ -54,13 +52,12 @@ public class FootPlacement : MonoBehaviour
     // A step shorter than this only unloads the leg. It happens when the clamps pin the landing.
     const float MinStepLength = 0.04f;
     // Body-local half-width band a foot may plant in, from the hip centreline: the inner bound keeps the
-    // legs from crossing, the outer one stops the stance splaying. DWH uses 0.12 inside, but that is
-    // wider than our 0.11 hips.
+    // legs from crossing, the outer one stops the stance splaying. The inner bound sits under the 0.11
+    // hip offset, so a foot placed straight under its own hip is never pushed outward.
     const float MinStanceHalfWidth = 0.08f;
     const float MaxStanceHalfWidth = 0.45f;
-    // Fraction of the leg a landing may use. The plan's 0.9 leaves no reach at all: standing already
-    // uses 0.75 m of drop against a 0.82 m leg. 0.98 allows ~0.29 m of horizontal reach from the hip.
-    // See resume-here §5.3.
+    // Fraction of the leg a landing may use. 0.9 would leave no reach at all: standing already uses
+    // 0.75 m of drop against a 0.82 m leg. 0.98 allows ~0.29 m of horizontal reach from the hip.
     const float MaxLegExtension = 0.98f;
 
     // --- Timing & Step Selection Margins ---
@@ -117,7 +114,7 @@ public class FootPlacement : MonoBehaviour
     public float LastLandTime { get; private set; }
 
     Vector3 Forward => ghostHips.forward;
-    Vector3 BodyVelocity => Flat(balanceSensor.CenterOfMassVelocity);
+    Vector3 BodyVelocity => balanceSensor.CenterOfMassVelocity.Flat();
     float FootGroundOffset => playerRig.FootGroundOffset;
 
     void Awake()
@@ -169,9 +166,9 @@ public class FootPlacement : MonoBehaviour
         float lastLand = Mathf.Max(LastLandTime, otherFoot.LastLandTime);
         if (lastLand > 0f && Time.time - lastLand < DoubleSupportPause(BodyVelocity.magnitude)) return;
 
-        Vector3 capture = Flat(balanceSensor.CapturePoint);
-        Vector3 mySole = Flat(SupportPoint);
-        Vector3 otherSole = Flat(otherFoot.SupportPoint);
+        Vector3 capture = balanceSensor.CapturePoint.Flat();
+        Vector3 mySole = SupportPoint.Flat();
+        Vector3 otherSole = otherFoot.SupportPoint.Flat();
 
         // Measured from the line between the two soles, not their midpoint: a body resting over one
         // foot of a wide stance is fine, and measuring from the midpoint made that foot march in place.
@@ -181,7 +178,7 @@ public class FootPlacement : MonoBehaviour
         if (!IsMyTurn(error, capture, mySole, otherSole)) return;
 
         Vector3 landing = ComputeLanding(capture, groundPoint, out Vector3 normal);
-        if (Flat(landing - groundPoint).magnitude < MinStepLength) return;
+        if ((landing - groundPoint).Flat().magnitude < MinStepLength) return;
 
         if (logSteps)
         {
@@ -225,7 +222,7 @@ public class FootPlacement : MonoBehaviour
     Vector3 ComputeLanding(Vector3 capture, Vector3 liftoff, out Vector3 normal)
     {
         // Put the sole centre on the capture point, offset out to this leg's side of it.
-        Vector3 liftoffSole = Flat(liftoff + Forward * SoleCentreForward);
+        Vector3 liftoffSole = (liftoff + Forward * SoleCentreForward).Flat();
         Vector3 sole = liftoffSole + (capture - liftoffSole) * captureGain
                      + ghostHips.right * (side * hipHalfWidth);
         Vector3 landing = sole - Forward * SoleCentreForward;
@@ -246,7 +243,8 @@ public class FootPlacement : MonoBehaviour
         return landing;
     }
 
-    // DrunkWalkHome's body-local lateral clamp, in the ghost hips' frame (hip centre, yaw only).
+    // Clamps the landing's sideways distance from the hip centreline, in the ghost hips' frame (hip
+    // centre, yaw only).
     Vector3 ClampStanceWidth(Vector3 landing)
     {
         Vector3 right = ghostHips.right;
@@ -277,7 +275,7 @@ public class FootPlacement : MonoBehaviour
         float reach = playerRig.LegLength * MaxLegExtension;
         float maxHorizontal = Mathf.Sqrt(Mathf.Max(0f, reach * reach - drop * drop));
 
-        Vector3 offset = Vector3.ClampMagnitude(Flat(landing - hip), maxHorizontal);
+        Vector3 offset = Vector3.ClampMagnitude((landing - hip).Flat(), maxHorizontal);
         return new Vector3(hip.x + offset.x, landing.y, hip.z + offset.z);
     }
 
@@ -313,7 +311,7 @@ public class FootPlacement : MonoBehaviour
     // zero by landing: without it the foot lands where the body was heading at liftoff, and each short
     // landing sets up the next, growing, step.
     //
-    // DrunkWalkHome's lift curve, t²(1−t)⁴ normalised to peak 1 at t = ⅓: it rises early to clear the
+    // The lift curve is t²(1−t)⁴, normalised to peak 1 at t = ⅓: it rises early to clear the
     // ground and glides in, where a sine is symmetric and slaps down.
     void AdvanceSwing()
     {
@@ -322,7 +320,7 @@ public class FootPlacement : MonoBehaviour
 
         if (chasesCapturePoint)
         {
-            Vector3 aim = ComputeLanding(Flat(balanceSensor.CapturePoint), liftoffPoint, out Vector3 aimNormal);
+            Vector3 aim = ComputeLanding(balanceSensor.CapturePoint.Flat(), liftoffPoint, out Vector3 aimNormal);
             float fade = 1f - t * t * (3f - 2f * t);
             float weight = Mathf.Clamp01(RetargetStrength * Time.fixedDeltaTime * fade);
             landingPoint = Vector3.Lerp(landingPoint, aim, weight);
@@ -369,7 +367,7 @@ public class FootPlacement : MonoBehaviour
         stepLift = Mathf.Max(0f, stepHeight + Random.Range(-StepHeightVariance, StepHeightVariance));
     }
 
-    // DrunkWalkHome's PoseKneeHint: the knee points along cross(legDir, body right), mirrored forward
+    // The knee points along cross(legDir, body right), mirrored forward
     // if it ever points backward so a deep tuck can't fold the knee the wrong way. Crossing against the
     // body's right rather than world right is what keeps a toed-out foot from folding the knee inward.
     void PoseKneeHint()
@@ -388,8 +386,6 @@ public class FootPlacement : MonoBehaviour
     }
 
     // --- Helpers ---------------------------------------------------------------------------------------
-
-    static Vector3 Flat(Vector3 v) => v.Flat();
 
     static Vector3 ClosestOnSegment(Vector3 p, Vector3 a, Vector3 b)
     {

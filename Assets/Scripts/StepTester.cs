@@ -8,7 +8,7 @@ public class StepTester : MonoBehaviour
 {
     [SerializeField] FootPlacement leftFoot;
     [SerializeField] FootPlacement rightFoot;
-    [SerializeField] float stepDistance = 0.2f;   // 0.3 is 98.5% of the leg's reach — see resume-here §5.3
+    [SerializeField] float stepDistance = 0.2f;   // 0.3 needs 98.5% of the leg's reach: the knee locks
 
     PlayerRig playerRig;
 
