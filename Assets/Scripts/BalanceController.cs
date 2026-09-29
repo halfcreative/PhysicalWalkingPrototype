@@ -1,5 +1,8 @@
 using UnityEngine;
 
+// The two balance strategies that don't take a step: the ankle trim, which leans the body on its feet
+// for small capture-point errors, and the pelvis upright torque, which keeps the upper body stacked
+// over the hips. Stepping, for everything larger, is FootPlacement's.
 [DefaultExecutionOrder(-50)]
 public class BalanceController : MonoBehaviour
 {
@@ -12,12 +15,15 @@ public class BalanceController : MonoBehaviour
 
     [SerializeField] BalanceSensor balanceSensor;
     [SerializeField] Rigidbody pelvis;
-    [SerializeField] FootPlacement leftPlacement;
-    [SerializeField] FootPlacement rightPlacement;
+    [SerializeField] FootPlacement leftFoot;
+    [SerializeField] FootPlacement rightFoot;
 
-    // Degrees of ankle trim per metre of capture-point error, and its limit.
-    [SerializeField] float gain = 20f;
-    [SerializeField] float maxAngle = 6f;
+    // Degrees of ankle pitch per metre the capture point sits ahead of (+) or behind (−) the planted
+    // soles, and the most it may pitch either way.
+    [SerializeField] float ankleTrimGain = 20f;
+    [SerializeField] float maxAnkleTrim = 6f;
+
+    // Where PlayerRig puts the ghost hips, measured up from the support plane.
     [SerializeField] float standingHipHeight = 0.85f;
 
     // Caps the upright torque so it can hold the upper body over the hips but not the whole body
@@ -25,23 +31,21 @@ public class BalanceController : MonoBehaviour
     // Standing needs ~80. Uncapped, nothing could knock the character over.
     [SerializeField] float maxUprightTorque = 150f;
 
-    // Where PlayerRig puts the ghost hips, measured up from the support plane.
     public float StandingHipHeight => standingHipHeight;
 
-    // The ankle strategy: the small trim that handles COM errors too small to be worth a step.
     // Published rather than applied, so that LegDrive stays the only thing writing an ankle joint.
     // It composes into the foot rotation there.
     public Quaternion AnkleTrim { get; private set; } = Quaternion.identity;
 
     void FixedUpdate()
     {
-        // Forward error of the capture point from the planted soles, along the body's facing. Read off
-        // the feet rather than a fixed offset, so it still means something once the feet have moved.
-        // FootPlacement runs later in the tick, so this is last tick's stance, which is fine for a trim.
+        // Read off the feet rather than a fixed offset, so it still means something once the feet have
+        // moved. FootPlacement runs later in the tick, so this is last tick's stance, which is fine
+        // for a trim.
         Vector3 forward = Vector3.ProjectOnPlane(pelvis.rotation * Vector3.forward, Vector3.up).normalized;
-        float error = Vector3.Dot(balanceSensor.COMPrediction - StanceCentre(), forward);
+        float error = Vector3.Dot(balanceSensor.CapturePoint - StanceCentre(), forward);
 
-        float pitch = Mathf.Clamp(gain * error, -maxAngle, maxAngle);
+        float pitch = Mathf.Clamp(ankleTrimGain * error, -maxAnkleTrim, maxAnkleTrim);
         AnkleTrim = Quaternion.Euler(pitch, 0f, 0f);
 
         HoldPelvisUpright();
@@ -50,9 +54,9 @@ public class BalanceController : MonoBehaviour
     // The planted soles: both while both are down, otherwise the one carrying the body.
     Vector3 StanceCentre()
     {
-        if (leftPlacement.IsStepping) return rightPlacement.SupportPoint;
-        if (rightPlacement.IsStepping) return leftPlacement.SupportPoint;
-        return (leftPlacement.SupportPoint + rightPlacement.SupportPoint) * 0.5f;
+        if (leftFoot.IsStepping) return rightFoot.SupportPoint;
+        if (rightFoot.IsStepping) return leftFoot.SupportPoint;
+        return (leftFoot.SupportPoint + rightFoot.SupportPoint) * 0.5f;
     }
 
     // A PD torque that tips the pelvis back toward vertical. AddTorque is legitimate here and nowhere
@@ -64,8 +68,8 @@ public class BalanceController : MonoBehaviour
     // then the character has already fallen, so that's fine for now.
     void HoldPelvisUpright()
     {
-        Vector3 axisErr = Vector3.Cross(pelvis.rotation * Vector3.up, Vector3.up);
-        Vector3 torque = axisErr * UprightSpring - pelvis.angularVelocity * UprightDamper;
+        Vector3 tiltAxis = Vector3.Cross(pelvis.rotation * Vector3.up, Vector3.up);
+        Vector3 torque = tiltAxis * UprightSpring - pelvis.angularVelocity * UprightDamper;
         pelvis.AddTorque(Vector3.ClampMagnitude(torque, maxUprightTorque), ForceMode.Force);
     }
 }

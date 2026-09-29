@@ -9,37 +9,40 @@ using UnityEngine;
 //
 // The gait and cadence are ported from DrunkWalkHome's FootPlacement: the Froude stride ceiling, the
 // duty-factor swing duration, the speed-faded double-support dwell, the older-plant tie-break, the
-// early-peak lift curve scaled to the step's span, the faded mid-flight re-aim, the body-local stance
+// early-peak lift curve scaled to the step's length, the faded mid-flight re-aim, the body-local stance
 // clamp and the knee hint posing. What stays ours is the trigger: DrunkWalkHome steps when the hip has
 // travelled a stride past the foot, because its body is kinematic; ours steps when the capture point
 // leaves the stance, because ours can fall. See resume-here §5.5–5.6.
+//
+// Positions are GROUND points: the spot on the floor under the ankle. The IK target is the ankle itself,
+// so the rig's foot offset is added only when the transform is written.
 [DefaultExecutionOrder(0)]
 public class FootPlacement : MonoBehaviour
 {
     const float Gravity = 9.81f;
 
     // Gait (DrunkWalkHome). Step length = c · Fr^β · L / 2 with Fr = v² / (gL); c is fitted so a 0.9 m
-    // leg reproduces the generic adult fit, so on our 0.82 m chain it is dynamic similarity, not a guess.
+    // leg reproduces the generic adult fit, so on our 0.82 m leg it is dynamic similarity, not a guess.
     const float FroudeCoefficient = 2.35f;
     const float FroudeExponent = 0.25f;
     // Stance share of the stride: > 0.65 at a slow walk, 0.52–0.55 at a fast one.
     const float DutyFactorSlow = 0.65f;
     const float DutyFactorFast = 0.54f;
     const float MinSwingDuration = 0.2f;
-    // The double-support beat after a landing, fading to nothing by DwellFadeSpeed: slow walks have
-    // one, fast gaits don't.
-    const float DoubleSupportDwell = 0.12f;
-    const float DwellFadeSpeed = 4f;
+    // The both-feet-down pause after a landing, fading to nothing by DoubleSupportFadeSpeed: slow walks
+    // have one, fast gaits don't.
+    const float DoubleSupportTime = 0.12f;
+    const float DoubleSupportFadeSpeed = 4f;
     // Below this speed there is no direction of travel, so no stride ceiling and no stride to measure.
     const float CrawlSpeed = 0.15f;
 
-    // Swing arc (DrunkWalkHome). Lift varies a little per step, and may not exceed this fraction of how
-    // far the step travels, so a short shuffle doesn't lift like a full stride and read as marching.
+    // Swing arc (DrunkWalkHome). Lift varies a little per step, and may not exceed this many metres per
+    // metre the step travels, so a short shuffle doesn't lift like a full stride and read as marching.
     const float StepHeightVariance = 0.03f;
-    const float StepHeightPerSpan = 0.8f;
+    const float MaxLiftPerStepLength = 0.8f;
     // How hard an in-flight foot re-aims at the moving capture point, faded to zero by landing.
     const float RetargetStrength = 10f;
-    const float KneeOffsetDistance = 0.3f;
+    const float KneeHintDistance = 0.3f;
 
     // The foot box's centre sits this far ahead of the ankle. Balance is judged against the sole, not
     // the ankle, so this is where "the foot" is for the capture point and the ankle trim.
@@ -51,9 +54,10 @@ public class FootPlacement : MonoBehaviour
     // wider than our 0.11 hips.
     const float MinStanceHalfWidth = 0.08f;
     const float MaxStanceHalfWidth = 0.45f;
-    // The plan's 0.9 leaves no reach at all: standing already uses 0.75 m of drop against a 0.82 m
-    // chain. 0.98 allows ~0.29 m of horizontal reach from the hip. See resume-here §5.3.
-    const float StrideReachSafety = 0.98f;
+    // Fraction of the leg a landing may use. The plan's 0.9 leaves no reach at all: standing already
+    // uses 0.75 m of drop against a 0.82 m leg. 0.98 allows ~0.29 m of horizontal reach from the hip.
+    // See resume-here §5.3.
+    const float MaxLegExtension = 0.98f;
     // No steps while the body drops onto its legs at spawn. Without it, the settling lean steps once.
     const float SpawnSettleTime = 1.0f;
 
@@ -61,8 +65,6 @@ public class FootPlacement : MonoBehaviour
     [SerializeField] PlayerRig playerRig;
     [SerializeField] BalanceSensor balanceSensor;
     [SerializeField] FootPlacement otherFoot;
-    // Yaw source. PlayerRig (−40) sets it to the pelvis's yaw only, before this runs.
-    [SerializeField] Transform ghostHips;
     // This leg's IK root. Reach is measured from here because it's the hip the solver actually uses.
     [SerializeField] Transform ghostThigh;
     // This leg's TwoBoneIK hint, re-aimed every tick; see PoseKneeHint.
@@ -72,62 +74,64 @@ public class FootPlacement : MonoBehaviour
     // 1 = land on the capture point and stop. Lower lands short so the body keeps going: walking.
     [SerializeField, Range(0.3f, 1f)] float captureGain = 1.0f;
     // How far the capture point may leave the stance before a foot steps.
-    [SerializeField] float stepMargin = 0.08f;
+    [SerializeField] float stepTriggerDistance = 0.08f;
     [SerializeField] float stepHeight = 0.10f;
     // The duty factor is a walking relation and asks for long swings at recovery speeds. Lower this
     // first if a catch step arrives too late.
     [SerializeField] float maxSwingDuration = 0.7f;
 
     [Header("Debug")]
+    // Off leaves the foot to StepTester alone.
     [SerializeField] bool autoStep = true;
     [SerializeField] bool logSteps = false;
 
-    // Ground points, not ankle points: the rig's foot offset is added only when writing the transform.
-    Vector3 currentPos;
-    Vector3 targetPos;
-    Vector3 liftoffPos;
-    Vector3 currentNormal = Vector3.up;
+    Vector3 groundPoint;
+    Vector3 groundNormal = Vector3.up;
+    Vector3 liftoffPoint;
+    Vector3 landingPoint;
     bool isStepping;
-    bool retargeting;   // set for steps the trigger commits; StepTester's fixed steps don't chase
-    float stepProgress;
-    float activeStepHeight;
+    // Trigger-committed steps re-aim at the capture point in flight; StepTester's fixed steps don't.
+    bool chasesCapturePoint;
+    float stepProgress;   // 0 → 1 over the swing
+    float stepLift;       // this step's peak lift, before the length cap
 
-    // Read off the rig in Awake, so neither can be set wrong: −1 for the left leg, +1 for the right, and
-    // how far this hip sits from the centreline.
-    float side;
-    float stanceHalfWidth;
-    int groundMask;
+    // Read off the rig in Awake, so none can be set wrong.
+    Transform ghostHips;
+    float side;           // −1 for the left leg, +1 for the right
+    float hipHalfWidth;   // how far this hip sits from the centreline
+    int groundMask;       // everything but the player's own bodies
 
     public bool IsStepping => isStepping;
-    public bool IsPlanted => !isStepping;
-    public Vector3 FootPos => currentPos;
-    public Vector3 SupportPoint => currentPos + Forward * SoleCentreForward;
+    public Vector3 GroundPoint => groundPoint;
+    // The sole's centre on the ground: where this foot bears weight, for balance.
+    public Vector3 SupportPoint => groundPoint + Forward * SoleCentreForward;
     public float LastLandTime { get; private set; }
 
     Vector3 Forward => ghostHips.forward;
-    Vector3 Velocity => Flat(balanceSensor.COMVelocity);
-    // The IK target is the ankle, not the sole; PlayerRig owns how far apart they are.
+    Vector3 BodyVelocity => Flat(balanceSensor.CenterOfMassVelocity);
     float FootGroundOffset => playerRig.FootGroundOffset;
 
     void Awake()
     {
-        if (!playerRig || !balanceSensor || !otherFoot || !ghostHips || !ghostThigh || !kneeHint)
+        if (!playerRig || !balanceSensor || !otherFoot || !ghostThigh || !kneeHint)
         {
             Debug.LogError("FootPlacement: unassigned references — disabling.", this);
             enabled = false;
             return;
         }
 
+        ghostHips = playerRig.GhostHips;
+
         float hipOffset = Vector3.Dot(ghostThigh.position - ghostHips.position, ghostHips.right);
         side = Mathf.Sign(hipOffset);
-        stanceHalfWidth = Mathf.Abs(hipOffset);
+        hipHalfWidth = Mathf.Abs(hipOffset);
 
-        // Everything but the player's own bodies, or the ground cast lands on the character itself.
+        // Without this the ground cast lands on the character itself.
         groundMask = ~LayerMask.GetMask("PlayerBody");
 
         // Start planted wherever the target was authored.
-        currentPos = transform.position - Vector3.up * FootGroundOffset;
-        targetPos = liftoffPos = currentPos;
+        groundPoint = transform.position - Vector3.up * FootGroundOffset;
+        landingPoint = liftoffPoint = groundPoint;
     }
 
     void FixedUpdate()
@@ -139,8 +143,8 @@ public class FootPlacement : MonoBehaviour
             AdvanceSwing();
 
         transform.SetPositionAndRotation(
-            currentPos + Vector3.up * FootGroundOffset,
-            Quaternion.FromToRotation(Vector3.up, currentNormal) * ghostHips.rotation);
+            groundPoint + Vector3.up * FootGroundOffset,
+            Quaternion.FromToRotation(Vector3.up, groundNormal) * ghostHips.rotation);
 
         PoseKneeHint();
     }
@@ -149,32 +153,35 @@ public class FootPlacement : MonoBehaviour
 
     void DecideStep()
     {
-        // Gates: busy, one foot at a time (lifting both is a jump), and the double-support beat after
+        // Gates: busy, one foot at a time (lifting both is a jump), and the double-support pause after
         // EITHER foot lands. Only waiting on the other foot lets a foot step again the tick it lands.
         if (Time.time < SpawnSettleTime) return;
         if (isStepping || otherFoot.IsStepping) return;
         float lastLand = Mathf.Max(LastLandTime, otherFoot.LastLandTime);
-        if (lastLand > 0f && Time.time - lastLand < Dwell(Velocity.magnitude)) return;
+        if (lastLand > 0f && Time.time - lastLand < DoubleSupportPause(BodyVelocity.magnitude)) return;
 
-        Vector3 capture = Flat(balanceSensor.COMPrediction);
-        Vector3 mine = Flat(SupportPoint);
-        Vector3 theirs = Flat(otherFoot.SupportPoint);
+        Vector3 capture = Flat(balanceSensor.CapturePoint);
+        Vector3 mySole = Flat(SupportPoint);
+        Vector3 otherSole = Flat(otherFoot.SupportPoint);
 
         // Measured from the line between the two soles, not their midpoint: a body resting over one
         // foot of a wide stance is fine, and measuring from the midpoint made that foot march in place.
-        Vector3 error = capture - ClosestOnSegment(capture, mine, theirs);
-        if (error.magnitude < stepMargin) return;
+        Vector3 error = capture - ClosestOnSegment(capture, mySole, otherSole);
+        if (error.magnitude < stepTriggerDistance) return;
 
-        if (!IsMyStep(error, capture, mine, theirs)) return;
+        if (!IsMyTurn(error, capture, mySole, otherSole)) return;
 
-        Vector3 landing = Landing(capture, currentPos, out Vector3 normal);
-        if (Flat(landing - currentPos).magnitude < MinStepLength) return;
+        Vector3 landing = ComputeLanding(capture, groundPoint, out Vector3 normal);
+        if (Flat(landing - groundPoint).magnitude < MinStepLength) return;
 
         if (logSteps)
+        {
+            float speed = BodyVelocity.magnitude;
             Debug.Log($"[{Time.time:F2}] {name} steps  capture {capture:F3}  error {error:F3} " +
-                      $"(|{error.magnitude:F3}|)  from {currentPos:F3} to {landing:F3}  " +
-                      $"COM vel {balanceSensor.COMVelocity:F2}  stride cap {StrideLength(Velocity.magnitude):F2} " +
-                      $"swing {SwingDuration(Velocity.magnitude):F2}s", this);
+                      $"(|{error.magnitude:F3}|)  from {groundPoint:F3} to {landing:F3}  " +
+                      $"COM vel {balanceSensor.CenterOfMassVelocity:F2}  stride cap {StrideLength(speed):F2} " +
+                      $"swing {SwingDuration(speed):F2}s", this);
+        }
 
         BeginStep(landing, normal, true);
     }
@@ -184,7 +191,7 @@ public class FootPlacement : MonoBehaviour
     // would have to cross over. Otherwise the trailing foot steps: the one further from the capture
     // point, with DrunkWalkHome's 2 cm deadband and tie-breaks (the older plant, then the left foot) so
     // exactly one foot is ever the candidate and a parallel stance alternates rather than repeats.
-    bool IsMyStep(Vector3 error, Vector3 capture, Vector3 mine, Vector3 theirs)
+    bool IsMyTurn(Vector3 error, Vector3 capture, Vector3 mySole, Vector3 otherSole)
     {
         float lateral = Vector3.Dot(error, ghostHips.right);
         float forward = Vector3.Dot(error, Forward);
@@ -192,10 +199,10 @@ public class FootPlacement : MonoBehaviour
         if (Mathf.Abs(lateral) > Mathf.Abs(forward))
             return Mathf.Sign(lateral) == side;
 
-        float myDistance = (capture - mine).magnitude;
-        float theirDistance = (capture - theirs).magnitude;
-        if (myDistance > theirDistance + 0.02f) return true;
-        if (theirDistance > myDistance + 0.02f) return false;
+        float myDistance = (capture - mySole).magnitude;
+        float otherDistance = (capture - otherSole).magnitude;
+        if (myDistance > otherDistance + 0.02f) return true;
+        if (otherDistance > myDistance + 0.02f) return false;
 
         if (LastLandTime < otherFoot.LastLandTime - 0.01f) return true;
         if (otherFoot.LastLandTime < LastLandTime - 0.01f) return false;
@@ -204,17 +211,18 @@ public class FootPlacement : MonoBehaviour
 
     // --- Landing ---------------------------------------------------------------------------------------
 
-    // Where a foot lifting off from `from` should land to catch the body. The capture point keeps
+    // Where a foot lifting off from `liftoff` should land to catch the body. The capture point keeps
     // moving while the foot is in the air, so this is re-run during the swing (see AdvanceSwing).
-    Vector3 Landing(Vector3 capture, Vector3 from, out Vector3 normal)
+    Vector3 ComputeLanding(Vector3 capture, Vector3 liftoff, out Vector3 normal)
     {
         // Put the sole centre on the capture point, offset out to this leg's side of it.
-        Vector3 fromSole = Flat(from + Forward * SoleCentreForward);
-        Vector3 sole = fromSole + (capture - fromSole) * captureGain + ghostHips.right * (side * stanceHalfWidth);
+        Vector3 liftoffSole = Flat(liftoff + Forward * SoleCentreForward);
+        Vector3 sole = liftoffSole + (capture - liftoffSole) * captureGain
+                     + ghostHips.right * (side * hipHalfWidth);
         Vector3 landing = sole - Forward * SoleCentreForward;
-        landing.y = from.y;
+        landing.y = liftoff.y;
 
-        landing = ClampStanceLateral(landing);
+        landing = ClampStanceWidth(landing);
         landing = ClampStride(landing);
         landing = ClampToReach(landing);
 
@@ -230,24 +238,24 @@ public class FootPlacement : MonoBehaviour
     }
 
     // DrunkWalkHome's body-local lateral clamp, in the ghost hips' frame (hip centre, yaw only).
-    Vector3 ClampStanceLateral(Vector3 landing)
+    Vector3 ClampStanceWidth(Vector3 landing)
     {
         Vector3 right = ghostHips.right;
-        float lateral = side * Vector3.Dot(landing - ghostHips.position, right);
-        float clamped = Mathf.Clamp(lateral, MinStanceHalfWidth, MaxStanceHalfWidth);
-        return landing + right * (side * (clamped - lateral));
+        float halfWidth = side * Vector3.Dot(landing - ghostHips.position, right);
+        float clamped = Mathf.Clamp(halfWidth, MinStanceHalfWidth, MaxStanceHalfWidth);
+        return landing + right * (side * (clamped - halfWidth));
     }
 
     // How far past the other foot, along the direction of travel, this landing may be. Below a crawl
     // there is no direction of travel, and a catch step must be free to go where the capture point is.
     Vector3 ClampStride(Vector3 landing)
     {
-        Vector3 velocity = Velocity;
+        Vector3 velocity = BodyVelocity;
         float speed = velocity.magnitude;
         if (speed < CrawlSpeed) return landing;
 
         Vector3 dir = velocity / speed;
-        float ahead = Vector3.Dot(landing - otherFoot.FootPos, dir);
+        float ahead = Vector3.Dot(landing - otherFoot.GroundPoint, dir);
         float limit = StrideLength(speed);
         return ahead > limit ? landing - dir * (ahead - limit) : landing;
     }
@@ -257,7 +265,7 @@ public class FootPlacement : MonoBehaviour
     {
         Vector3 hip = ghostThigh.position;
         float drop = hip.y - (landing.y + FootGroundOffset);
-        float reach = playerRig.Chain * StrideReachSafety;
+        float reach = playerRig.LegLength * MaxLegExtension;
         float maxHorizontal = Mathf.Sqrt(Mathf.Max(0f, reach * reach - drop * drop));
 
         Vector3 offset = Vector3.ClampMagnitude(Flat(landing - hip), maxHorizontal);
@@ -271,7 +279,7 @@ public class FootPlacement : MonoBehaviour
     float StrideLength(float speed)
     {
         speed = Mathf.Max(speed, 0.05f);
-        float leg = playerRig.Chain;
+        float leg = playerRig.LegLength;
         float froude = speed * speed / (Gravity * leg);
         return FroudeCoefficient * Mathf.Pow(froude, FroudeExponent) * leg * 0.5f;
     }
@@ -286,8 +294,8 @@ public class FootPlacement : MonoBehaviour
         return Mathf.Clamp(stance * (1f - duty) / duty, MinSwingDuration, maxSwingDuration);
     }
 
-    static float Dwell(float speed) =>
-        DoubleSupportDwell * (1f - Mathf.Clamp01(speed / DwellFadeSpeed));
+    static float DoubleSupportPause(float speed) =>
+        DoubleSupportTime * (1f - Mathf.Clamp01(speed / DoubleSupportFadeSpeed));
 
     // --- Swing -----------------------------------------------------------------------------------------
 
@@ -300,28 +308,28 @@ public class FootPlacement : MonoBehaviour
     // ground and glides in, where a sine is symmetric and slaps down.
     void AdvanceSwing()
     {
-        stepProgress += Time.fixedDeltaTime / SwingDuration(Velocity.magnitude);
+        stepProgress += Time.fixedDeltaTime / SwingDuration(BodyVelocity.magnitude);
         float t = Mathf.Clamp01(stepProgress);
 
-        if (retargeting)
+        if (chasesCapturePoint)
         {
-            Vector3 aim = Landing(Flat(balanceSensor.COMPrediction), liftoffPos, out Vector3 aimNormal);
+            Vector3 aim = ComputeLanding(Flat(balanceSensor.CapturePoint), liftoffPoint, out Vector3 aimNormal);
             float fade = 1f - t * t * (3f - 2f * t);
-            float w = Mathf.Clamp01(RetargetStrength * Time.fixedDeltaTime * fade);
-            targetPos = Vector3.Lerp(targetPos, aim, w);
-            currentNormal = aimNormal;
+            float weight = Mathf.Clamp01(RetargetStrength * Time.fixedDeltaTime * fade);
+            landingPoint = Vector3.Lerp(landingPoint, aim, weight);
+            groundNormal = aimNormal;
         }
 
-        float swing = t * t * (3f - 2f * t);
-        Vector3 pos = Vector3.Lerp(liftoffPos, targetPos, swing);
+        float travel = t * t * (3f - 2f * t);
+        Vector3 point = Vector3.Lerp(liftoffPoint, landingPoint, travel);
         float lift = t * t * (1f - t) * (1f - t) * (1f - t) * (1f - t) * 45.5625f;
-        pos.y += lift * StepHeightFor(targetPos);
-        currentPos = pos;
+        point.y += lift * PeakLift();
+        groundPoint = point;
 
         if (stepProgress >= 1f)
         {
             isStepping = false;
-            currentPos = targetPos;
+            groundPoint = landingPoint;
             LastLandTime = Time.time;
         }
     }
@@ -329,27 +337,27 @@ public class FootPlacement : MonoBehaviour
     // This step's lift, capped by how far it actually travels. Re-read every tick because the landing
     // moves; the cap only ever lowers the lift, so a re-aim can't make the foot jump upward. A rise is
     // added on top so a step up keeps its clearance.
-    float StepHeightFor(Vector3 target)
+    float PeakLift()
     {
-        Vector3 span = target - liftoffPos;
-        float rise = Mathf.Max(0f, span.y);
-        span.y = 0f;
-        return Mathf.Min(activeStepHeight, span.magnitude * StepHeightPerSpan + rise);
+        Vector3 travel = landingPoint - liftoffPoint;
+        float rise = Mathf.Max(0f, travel.y);
+        travel.y = 0f;
+        return Mathf.Min(stepLift, travel.magnitude * MaxLiftPerStepLength + rise);
     }
 
     // Commits a step from wherever the foot is now, to a fixed landing. The normal is taken at commit
     // rather than on landing, which only matters on uneven ground; the floor here is flat.
     public void BeginStep(Vector3 landing, Vector3 normal) => BeginStep(landing, normal, false);
 
-    void BeginStep(Vector3 landing, Vector3 normal, bool retarget)
+    void BeginStep(Vector3 landing, Vector3 normal, bool chaseCapturePoint)
     {
-        liftoffPos = currentPos;
-        targetPos = landing;
-        currentNormal = normal;
+        liftoffPoint = groundPoint;
+        landingPoint = landing;
+        groundNormal = normal;
         stepProgress = 0f;
         isStepping = true;
-        retargeting = retarget;
-        activeStepHeight = Mathf.Max(0f, stepHeight + Random.Range(-StepHeightVariance, StepHeightVariance));
+        chasesCapturePoint = chaseCapturePoint;
+        stepLift = Mathf.Max(0f, stepHeight + Random.Range(-StepHeightVariance, StepHeightVariance));
     }
 
     // DrunkWalkHome's PoseKneeHint: the knee points along cross(legDir, body right), mirrored forward
@@ -367,7 +375,7 @@ public class FootPlacement : MonoBehaviour
         float ahead = Vector3.Dot(knee, forward);
         if (ahead < 0f) knee -= 2f * ahead * forward;
 
-        kneeHint.position = (hip + ankle) * 0.5f + knee * KneeOffsetDistance;
+        kneeHint.position = (hip + ankle) * 0.5f + knee * KneeHintDistance;
     }
 
     // --- Helpers ---------------------------------------------------------------------------------------
@@ -387,11 +395,11 @@ public class FootPlacement : MonoBehaviour
         if (!Application.isPlaying) return;
 
         Gizmos.color = isStepping ? Color.yellow : Color.green;
-        Gizmos.DrawWireSphere(currentPos, 0.03f);
+        Gizmos.DrawWireSphere(groundPoint, 0.03f);
 
         if (!isStepping) return;
         Gizmos.color = Color.yellow;
-        Gizmos.DrawLine(liftoffPos, targetPos);
-        Gizmos.DrawWireSphere(targetPos, 0.04f);
+        Gizmos.DrawLine(liftoffPoint, landingPoint);
+        Gizmos.DrawWireSphere(landingPoint, 0.04f);
     }
 }

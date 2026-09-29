@@ -1,15 +1,13 @@
 using UnityEngine;
 
-// Measures the leg chain from the joint anchors — which are the truth, not the transform
-// positions — and checks that the ghost skeleton starts indistinguishable from the physical
-// one. Writes nothing: placing the ghost hips is Step 3's job, and keeping this component
-// read-only for now means a failure here can only be a measurement or an alignment problem.
+// Places the ghost hips each tick, and owns the rig's measurements. At Awake it measures the leg
+// chain from the joint anchors — which are the truth, not the transform positions — and checks that
+// the ghost skeleton starts indistinguishable from the physical one.
 [DefaultExecutionOrder(-40)]
 public class PlayerRig : MonoBehaviour
 {
     [Header("Physical")]
-    [SerializeField] Transform pelvis;
-    [SerializeField] Rigidbody pelvisBody; //Can this be combined wit the pelvis variable
+    [SerializeField] Rigidbody pelvis;
     [SerializeField] Transform thighL, shinL, footL;
     [SerializeField] Transform thighR, shinR, footR;
     [SerializeField] BalanceController balanceController;
@@ -23,22 +21,22 @@ public class PlayerRig : MonoBehaviour
     [SerializeField] float maxBindAngle = 0.5f;     // degrees
     [SerializeField] float maxBindOffset = 0.005f;  // metres
 
+    // Ankle to sole. The IK targets the ankle, so FootPlacement lifts every target by this much.
     [SerializeField] float footGroundOffset = 0.10f;
 
-    // Ankle to sole. The IK targets the ankle, so FootPlacement lifts every target by this much.
     public float FootGroundOffset => footGroundOffset;
+    public Transform GhostHips => ghostHips;
 
-    // Leg geometry, measured at Awake. Step 8's reach clamp reads these.
-    public float L1 { get; private set; }
-    public float L2 { get; private set; }
-    public float Chain { get; private set; }
+    // Hip to ankle along a straight leg (thigh + shin), averaged over both legs at Awake. The reach
+    // clamp and the stride formula read it.
+    public float LegLength { get; private set; }
 
     // Hip, knee and ankle in world space, read off the joint anchors.
-    public struct LegMeasurement
+    struct LegMeasurement
     {
         public Vector3 Hip, Knee, Ankle;
-        public float L1, L2;
-        public float Chain => L1 + L2;
+        public float ThighLength, ShinLength;
+        public float Length => ThighLength + ShinLength;
     }
 
     void Awake()
@@ -59,18 +57,17 @@ public class PlayerRig : MonoBehaviour
         LegMeasurement left = MeasureLeg(thighL, shinL, footL);
         LegMeasurement right = MeasureLeg(thighR, shinR, footR);
 
-        L1 = (left.L1 + right.L1) * 0.5f;
-        L2 = (left.L2 + right.L2) * 0.5f;
-        Chain = L1 + L2;
+        LegLength = (left.Length + right.Length) * 0.5f;
 
         Debug.Log($"PlayerRig L  hip {left.Hip:F3} knee {left.Knee:F3} ankle {left.Ankle:F3}  " +
-                  $"L1 {left.L1:F3}  L2 {left.L2:F3}  chain {left.Chain:F3}", this);
+                  $"thigh {left.ThighLength:F3}  shin {left.ShinLength:F3}  leg {left.Length:F3}", this);
         Debug.Log($"PlayerRig R  hip {right.Hip:F3} knee {right.Knee:F3} ankle {right.Ankle:F3}  " +
-                  $"L1 {right.L1:F3}  L2 {right.L2:F3}  chain {right.Chain:F3}", this);
+                  $"thigh {right.ThighLength:F3}  shin {right.ShinLength:F3}  leg {right.Length:F3}", this);
 
-        if (Mathf.Abs(left.L1 - right.L1) > maxBindOffset || Mathf.Abs(left.L2 - right.L2) > maxBindOffset)
-            Debug.LogWarning($"PlayerRig: legs are asymmetric — " +
-                             $"L1 {left.L1:F4}/{right.L1:F4}, L2 {left.L2:F4}/{right.L2:F4}", this);
+        if (Mathf.Abs(left.ThighLength - right.ThighLength) > maxBindOffset ||
+            Mathf.Abs(left.ShinLength - right.ShinLength) > maxBindOffset)
+            Debug.LogWarning($"PlayerRig: legs are asymmetric — thigh {left.ThighLength:F4}/" +
+                             $"{right.ThighLength:F4}, shin {left.ShinLength:F4}/{right.ShinLength:F4}", this);
 
         AssertBindPose(left, right);
     }
@@ -91,7 +88,7 @@ public class PlayerRig : MonoBehaviour
     // Horizontal position comes from the body, never from a foot. Place it over a foot and each
     // leg demands the body be over its own, the two fight, and leaning becomes impossible.
     Vector3 HipCentre() =>
-        (AnchorOf(thighL, pelvis) + AnchorOf(thighR, pelvis)) * 0.5f;
+        (AnchorOf(thighL, pelvis.transform) + AnchorOf(thighR, pelvis.transform)) * 0.5f;
 
     // The lower sole while both feet are down. Read off the ankle anchors rather than the foot
     // transforms, because the foot box's centre is not the ankle.
@@ -104,24 +101,24 @@ public class PlayerRig : MonoBehaviour
     // the fallback gives a yaw ~90° off the true one: a discontinuity, but never a NaN.
     Quaternion PelvisYaw()
     {
-        Vector3 forward = Vector3.ProjectOnPlane(pelvisBody.rotation * Vector3.forward, Vector3.up);
+        Vector3 forward = Vector3.ProjectOnPlane(pelvis.rotation * Vector3.forward, Vector3.up);
         if (forward.sqrMagnitude < 1e-6f)
-            forward = Vector3.ProjectOnPlane(pelvisBody.rotation * Vector3.up, Vector3.up);
+            forward = Vector3.ProjectOnPlane(pelvis.rotation * Vector3.up, Vector3.up);
 
         return Quaternion.LookRotation(forward.normalized, Vector3.up);
     }
 
     // A joint sits on the child body and its connectedAnchor is in the PARENT's local space,
     // so read each anchor off the parent. TransformPoint applies scale, which these scaled
-    // primitives need — without it L1 comes out as 2.0 instead of 0.42.
+    // primitives need — without it the thigh comes out as 2.0 instead of 0.42.
     LegMeasurement MeasureLeg(Transform thigh, Transform shin, Transform foot)
     {
         LegMeasurement m = default;
-        m.Hip = AnchorOf(thigh, pelvis);
+        m.Hip = AnchorOf(thigh, pelvis.transform);
         m.Knee = AnchorOf(shin, thigh);
         m.Ankle = AnchorOf(foot, shin);
-        m.L1 = Vector3.Distance(m.Hip, m.Knee);
-        m.L2 = Vector3.Distance(m.Knee, m.Ankle);
+        m.ThighLength = Vector3.Distance(m.Hip, m.Knee);
+        m.ShinLength = Vector3.Distance(m.Knee, m.Ankle);
         return m;
     }
 
@@ -167,7 +164,7 @@ public class PlayerRig : MonoBehaviour
     }
 
     bool ReferencesAssigned() =>
-        pelvis && pelvisBody && balanceController && thighL && shinL && footL && thighR && shinR && footR &&
+        pelvis && balanceController && thighL && shinL && footL && thighR && shinR && footR &&
         ghostHips && ghostThighL && ghostShinL && ghostFootL &&
         ghostThighR && ghostShinR && ghostFootR;
 

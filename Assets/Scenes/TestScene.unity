@@ -1096,11 +1096,10 @@ MonoBehaviour:
   playerRig: {fileID: 1807426356}
   balanceSensor: {fileID: 1807426353}
   otherFoot: {fileID: 1443963552}
-  ghostHips: {fileID: 2083852863}
   ghostThigh: {fileID: 521958079}
   kneeHint: {fileID: 1006297221}
   captureGain: 1
-  stepMargin: 0.08
+  stepTriggerDistance: 0.08
   stepHeight: 0.1
   maxSwingDuration: 0.7
   autoStep: 1
@@ -1365,7 +1364,6 @@ GameObject:
   - component: {fileID: 692237255}
   - component: {fileID: 692237256}
   - component: {fileID: 692237254}
-  - component: {fileID: 692237259}
   m_Layer: 8
   m_Name: Foot_R
   m_TagString: Untagged
@@ -1595,18 +1593,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 692237252}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
---- !u!114 &692237259
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 692237252}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 90daed1ae6e764c9fb5f8a3e1e363eb2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FootController
 --- !u!1 &735725821
 GameObject:
   m_ObjectHideFlags: 0
@@ -2193,7 +2179,6 @@ GameObject:
   - component: {fileID: 918043726}
   - component: {fileID: 918043727}
   - component: {fileID: 918043725}
-  - component: {fileID: 918043730}
   m_Layer: 8
   m_Name: Foot_L
   m_TagString: Untagged
@@ -2423,18 +2408,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 918043723}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
---- !u!114 &918043730
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 918043723}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 90daed1ae6e764c9fb5f8a3e1e363eb2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FootController
 --- !u!1 &981669403
 GameObject:
   m_ObjectHideFlags: 0
@@ -3087,11 +3060,10 @@ MonoBehaviour:
   playerRig: {fileID: 1807426356}
   balanceSensor: {fileID: 1807426353}
   otherFoot: {fileID: 401535637}
-  ghostHips: {fileID: 2083852863}
   ghostThigh: {fileID: 12589339}
   kneeHint: {fileID: 1695630307}
   captureGain: 1
-  stepMargin: 0.08
+  stepTriggerDistance: 0.08
   stepHeight: 0.1
   maxSwingDuration: 0.7
   autoStep: 1
@@ -3657,9 +3629,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9f7588c2b55788f4787f1fe773b1d16e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BalanceSensor
-  COM: {x: 0, y: 0, z: 0}
-  COMVelocity: {x: 0, y: 0, z: 0}
-  COMPrediction: {x: 0, y: 0, z: 0}
 --- !u!114 &1807426354
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3674,10 +3643,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BalanceController
   balanceSensor: {fileID: 1807426353}
   pelvis: {fileID: 735725823}
-  leftPlacement: {fileID: 1443963552}
-  rightPlacement: {fileID: 401535637}
-  gain: 20
-  maxAngle: 6
+  leftFoot: {fileID: 1443963552}
+  rightFoot: {fileID: 401535637}
+  ankleTrimGain: 20
+  maxAnkleTrim: 6
   standingHipHeight: 0.85
   maxUprightTorque: 150
 --- !u!114 &1807426355
@@ -3705,8 +3674,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ecc085c0c4fc74b40a02d59f2b178afb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerRig
-  pelvis: {fileID: 735725822}
-  pelvisBody: {fileID: 735725823}
+  pelvis: {fileID: 735725823}
   thighL: {fileID: 145205273}
   shinL: {fileID: 1483350783}
   footL: {fileID: 918043724}
@@ -3776,7 +3744,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StepTester
   leftFoot: {fileID: 1443963552}
   rightFoot: {fileID: 401535637}
-  ghostHips: {fileID: 2083852863}
   stepDistance: 0.2
 --- !u!1 &2083852862
 GameObject:
