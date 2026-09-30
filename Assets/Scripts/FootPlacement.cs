@@ -10,7 +10,8 @@ using UnityEngine;
 // The trigger is the capture point, not stride length: a body that can fall has to step where it is
 // falling, not where a gait cycle says the next foot goes. Stride and cadence only shape the step once
 // it's committed: a Froude stride ceiling, a duty-factor swing duration, a speed-faded double-support
-// pause, an early-peak lift curve scaled to the step's length, and a mid-flight re-aim.
+// pause, a lift curve that holds its height through mid-swing, scaled to the step's length, and a
+// mid-flight re-aim.
 //
 // Positions are GROUND points: the spot on the floor under the ankle. The IK target is the ankle itself,
 // so the rig's foot offset is added only when the transform is written.
@@ -60,9 +61,7 @@ public class FootPlacement : MonoBehaviour
     // 0.75 m of drop against a 0.82 m leg. 0.98 allows ~0.29 m of horizontal reach from the hip.
     const float MaxLegExtension = 0.98f;
 
-    // --- Timing & Step Selection Margins ---
-    // No steps while the body drops onto its legs at spawn. Without it, the settling lean steps once.
-    const float SpawnSettleTime = 1.0f;
+    // --- Step Selection Margins ---
     // Preference margin for distance to capture point and planting recency when selecting which foot steps.
     const float TurnDistanceMargin = 0.02f;
     const float TurnTimeMargin = 0.01f;
@@ -79,7 +78,7 @@ public class FootPlacement : MonoBehaviour
     [Header("Tuning")]
     // 1 = land on the capture point and stop. Lower lands short so the body keeps going: walking.
     [SerializeField, Range(0.3f, 1f)] float captureGain = 1.0f;
-    // How far the capture point may leave the stance before a foot steps.
+    // How far the centre of mass may leave the stance before a foot steps.
     [SerializeField] float stepTriggerDistance = 0.08f;
     [SerializeField] float stepHeight = 0.10f;
     // The duty factor is a walking relation and asks for long swings at recovery speeds. Lower this
@@ -108,12 +107,16 @@ public class FootPlacement : MonoBehaviour
     int groundMask;       // everything but the player's own bodies
 
     public bool IsStepping => isStepping;
+    // 0 → 1 through the swing; 1 while planted.
+    public float SwingProgress => isStepping ? Mathf.Clamp01(stepProgress) : 1f;
     public Vector3 GroundPoint => groundPoint;
     // The sole's centre on the ground: where this foot bears weight, for balance.
     public Vector3 SupportPoint => groundPoint + Forward * SoleCentreForward;
     public float LastLandTime { get; private set; }
 
     Vector3 Forward => ghostHips.forward;
+    // Where the body's hips really are. The ghost hips can sit off them (PlayerRig.GhostHipOffset).
+    Vector3 RealHips => ghostHips.position - playerRig.GhostHipOffset;
     Vector3 BodyVelocity => balanceSensor.CenterOfMassVelocity.Flat();
     float FootGroundOffset => playerRig.FootGroundOffset;
 
@@ -148,8 +151,13 @@ public class FootPlacement : MonoBehaviour
         if (isStepping)
             AdvanceSwing();
 
+        // The ghost hips sit off the real ones by GhostHipOffset (PlayerRig pulls them over the stance).
+        // A planted leg is meant to feel that, which is what pushes the body back over its feet; a
+        // swinging leg isn't, so its IK target carries the offset too and the real foot lands on
+        // groundPoint.
+        Vector3 ikShift = isStepping ? playerRig.GhostHipOffset : Vector3.zero;
         transform.SetPositionAndRotation(
-            groundPoint + Vector3.up * FootGroundOffset,
+            groundPoint + Vector3.up * FootGroundOffset + ikShift,
             Quaternion.FromToRotation(Vector3.up, groundNormal) * ghostHips.rotation);
 
         PoseKneeHint();
@@ -161,7 +169,7 @@ public class FootPlacement : MonoBehaviour
     {
         // Gates: busy, one foot at a time (lifting both is a jump), and the double-support pause after
         // EITHER foot lands. Only waiting on the other foot lets a foot step again the tick it lands.
-        if (Time.time < SpawnSettleTime) return;
+        // Stepping is live from spawn: the body settling onto its legs may stagger a step, and that's fine.
         if (isStepping || otherFoot.IsStepping) return;
         float lastLand = Mathf.Max(LastLandTime, otherFoot.LastLandTime);
         if (lastLand > 0f && Time.time - lastLand < DoubleSupportPause(BodyVelocity.magnitude)) return;
@@ -170,9 +178,15 @@ public class FootPlacement : MonoBehaviour
         Vector3 mySole = SupportPoint.Flat();
         Vector3 otherSole = otherFoot.SupportPoint.Flat();
 
+        // Triggered by where the body IS, the centre of mass, not where it's heading: the step waits
+        // until the weight has actually left the support, so it reads as catching a body that's already
+        // tipping. Triggered by the capture point, it stepped pre-emptively while the body was still over
+        // its feet. The landing still aims at the capture point.
+        //
         // Measured from the line between the two soles, not their midpoint: a body resting over one
         // foot of a wide stance is fine, and measuring from the midpoint made that foot march in place.
-        Vector3 error = capture - ClosestOnSegment(capture, mySole, otherSole);
+        Vector3 com = balanceSensor.CenterOfMass.Flat();
+        Vector3 error = com - ClosestOnSegment(com, mySole, otherSole);
         if (error.magnitude < stepTriggerDistance) return;
 
         if (!IsMyTurn(error, capture, mySole, otherSole)) return;
@@ -243,12 +257,12 @@ public class FootPlacement : MonoBehaviour
         return landing;
     }
 
-    // Clamps the landing's sideways distance from the hip centreline, in the ghost hips' frame (hip
-    // centre, yaw only).
+    // Clamps the landing's sideways distance from the hip centreline: the real hips, with the ghost
+    // hips' yaw.
     Vector3 ClampStanceWidth(Vector3 landing)
     {
         Vector3 right = ghostHips.right;
-        float halfWidth = side * Vector3.Dot(landing - ghostHips.position, right);
+        float halfWidth = side * Vector3.Dot(landing - RealHips, right);
         float clamped = Mathf.Clamp(halfWidth, MinStanceHalfWidth, MaxStanceHalfWidth);
         return landing + right * (side * (clamped - halfWidth));
     }
@@ -270,7 +284,7 @@ public class FootPlacement : MonoBehaviour
     // The horizontal budget from the hip, given how far below it the ankle has to reach.
     Vector3 ClampToReach(Vector3 landing)
     {
-        Vector3 hip = ghostThigh.position;
+        Vector3 hip = ghostThigh.position - playerRig.GhostHipOffset;
         float drop = hip.y - (landing.y + FootGroundOffset);
         float reach = playerRig.LegLength * MaxLegExtension;
         float maxHorizontal = Mathf.Sqrt(Mathf.Max(0f, reach * reach - drop * drop));
@@ -311,8 +325,13 @@ public class FootPlacement : MonoBehaviour
     // zero by landing: without it the foot lands where the body was heading at liftoff, and each short
     // landing sets up the next, growing, step.
     //
-    // The lift curve is t²(1−t)⁴, normalised to peak 1 at t = ⅓: it rises early to clear the
-    // ground and glides in, where a sine is symmetric and slaps down.
+    // The lift curve is √sin(πt): up fast, held near peak through the middle, down late. The physical
+    // leg starts the swing still carrying weight and follows the ghost ~0.15 s behind, so an early-peak
+    // curve had already come back down by the time the real foot got off the ground, and it scuffed.
+    //
+    // The lift also adds the rig's hip sag. The real hips sit below the ghost's, the leg copies the
+    // ghost's joint angles, and so the real foot hangs that far below its target. The sag is scaled by
+    // sin(πt), so it's gone again by touchdown and the foot still lands on the ground.
     void AdvanceSwing()
     {
         stepProgress += Time.fixedDeltaTime / SwingDuration(BodyVelocity.magnitude);
@@ -329,8 +348,8 @@ public class FootPlacement : MonoBehaviour
 
         float travel = t * t * (3f - 2f * t);
         Vector3 point = Vector3.Lerp(liftoffPoint, landingPoint, travel);
-        float lift = t * t * (1f - t) * (1f - t) * (1f - t) * (1f - t) * 45.5625f;
-        point.y += lift * PeakLift();
+        float arc = Mathf.Sin(t * Mathf.PI);
+        point.y += Mathf.Sqrt(arc) * PeakLift() + arc * playerRig.HipSag;
         groundPoint = point;
 
         if (stepProgress >= 1f)

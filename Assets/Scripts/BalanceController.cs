@@ -19,8 +19,8 @@ public class BalanceController : MonoBehaviour
     [Header("Ankle Trim")]
     // Degrees of ankle pitch per metre the capture point sits ahead of (+) or behind (−) the planted
     // soles, and the most it may pitch either way.
-    [SerializeField] float ankleTrimGain = 20f;
-    [SerializeField] float maxAnkleTrim = 6f;
+    [SerializeField] float ankleTrimGain = 50f;
+    [SerializeField] float maxAnkleTrim = 12f;
 
     [Header("Pelvis Upright Torque")]
     // Real N·m per radian and N·m·s per radian, applied with ForceMode.Force. Gravity tips the upper
@@ -55,7 +55,7 @@ public class BalanceController : MonoBehaviour
     }
 
     // The planted soles: both while both are down, otherwise the one carrying the body.
-    Vector3 StanceCentre()
+    public Vector3 StanceCentre()
     {
         if (leftFoot.IsStepping) return rightFoot.SupportPoint;
         if (rightFoot.IsStepping) return leftFoot.SupportPoint;

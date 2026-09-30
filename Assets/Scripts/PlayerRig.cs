@@ -11,6 +11,7 @@ public class PlayerRig : MonoBehaviour
     [SerializeField] Transform thighL, shinL, footL;
     [SerializeField] Transform thighR, shinR, footR;
     [SerializeField] BalanceController balanceController;
+    [SerializeField] BalanceSensor balanceSensor;
 
     [Header("Ghost")]
     [SerializeField] Transform ghostHips;
@@ -24,12 +25,24 @@ public class PlayerRig : MonoBehaviour
     // Ankle to sole. The IK targets the ankle, so FootPlacement lifts every target by this much.
     [SerializeField] float footGroundOffset = 0.10f;
 
+    [Header("Balance")]
+    // How hard the standing legs push the capture point back over the middle of the planted feet, as
+    // the fraction of that error the ghost hips are shifted by. See FixedUpdate.
+    [SerializeField, Range(0f, 2f)] float hipsOverStance = 1f;
+
     public float FootGroundOffset => footGroundOffset;
     public Transform GhostHips => ghostHips;
 
     // Hip to ankle along a straight leg (thigh + shin), averaged over both legs at Awake. The reach
     // clamp and the stride formula read it.
     public float LegLength { get; private set; }
+
+    // How far the real hips sit below the ghost hips, this tick. The legs copy the ghost's joint angles,
+    // so a swinging foot hangs this much below its target. ~3.5 cm standing, ~7 cm in single support.
+    public float HipSag { get; private set; }
+
+    // How far (horizontally) the ghost hips sit from the real ones this tick; see FixedUpdate.
+    public Vector3 GhostHipOffset { get; private set; }
 
     // Hip, knee and ankle in world space, read off the joint anchors.
     struct LegMeasurement
@@ -72,17 +85,36 @@ public class PlayerRig : MonoBehaviour
         AssertBindPose(left, right);
     }
 
-    // The ghost hips take the body's horizontal position and yaw, but their height comes from
-    // the support plane rather than the pelvis. That one substitution is the mechanism: it
-    // hands the leg drives a standing error to work against, where a ghost placed at the body's
-    // actual pose would give them zero error and no reason to produce torque.
+    // The ghost hips take their height from the support plane rather than the pelvis. That
+    // substitution hands the leg drives a standing error to work against, where a ghost placed at
+    // the body's actual pose would give them zero error and no reason to produce torque.
+    //
+    // Horizontally they sit off the body by the capture point's error from the middle of the planted
+    // feet, times hipsOverStance. The planted legs then push the body back over its base of support,
+    // which is the ankle/hip balance strategy done through the legs: internal torques, bounded by what
+    // the feet can push against, so a big enough shove still needs a step. At 0 nothing holds the body
+    // over its feet, and it balances like a pencil on its end.
+    //
+    // The capture point, not the hips: it carries the body's velocity, which damps the push. Pulling
+    // the hips themselves over the feet was a spring with no damper: the body settled for a second,
+    // then swayed through the stance and fell.
+    //
+    // It's the middle of the planted feet, never one foot while both are down: over a single foot,
+    // each leg would demand the body be over its own and the two would fight. The swinging leg must
+    // not feel this offset at all, or its foot lands off by the same amount, so FootPlacement adds
+    // GhostHipOffset back onto the swing target.
     void FixedUpdate()
     {
         Vector3 hip = HipCentre();
+        Vector3 error = (balanceController.StanceCentre() - balanceSensor.CapturePoint).Flat();
+        Vector3 over = hip + error * hipsOverStance;
 
         ghostHips.SetPositionAndRotation(
-            new Vector3(hip.x, SupportPlaneY() + balanceController.StandingHipHeight, hip.z),
+            new Vector3(over.x, SupportPlaneY() + balanceController.StandingHipHeight, over.z),
             PelvisYaw());
+
+        HipSag = Mathf.Max(0f, ghostHips.position.y - hip.y);
+        GhostHipOffset = new Vector3(over.x - hip.x, 0f, over.z - hip.z);
     }
 
     // Horizontal position comes from the body, never from a foot. Place it over a foot and each
@@ -164,7 +196,7 @@ public class PlayerRig : MonoBehaviour
     }
 
     bool ReferencesAssigned() =>
-        pelvis && balanceController && thighL && shinL && footL && thighR && shinR && footR &&
+        pelvis && balanceController && balanceSensor && thighL && shinL && footL && thighR && shinR && footR &&
         ghostHips && ghostThighL && ghostShinL && ghostFootL &&
         ghostThighR && ghostShinR && ghostFootR;
 

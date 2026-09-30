@@ -3645,9 +3645,11 @@ MonoBehaviour:
   pelvis: {fileID: 735725823}
   leftFoot: {fileID: 1443963552}
   rightFoot: {fileID: 401535637}
-  ankleTrimGain: 20
-  maxAnkleTrim: 6
   standingHipHeight: 0.85
+  ankleTrimGain: 50
+  maxAnkleTrim: 12
+  uprightSpring: 1000
+  uprightDamper: 120
   maxUprightTorque: 150
 --- !u!114 &1807426355
 MonoBehaviour:
@@ -3682,6 +3684,7 @@ MonoBehaviour:
   shinR: {fileID: 801797902}
   footR: {fileID: 692237253}
   balanceController: {fileID: 1807426354}
+  balanceSensor: {fileID: 1807426353}
   ghostHips: {fileID: 2083852863}
   ghostThighL: {fileID: 12589339}
   ghostShinL: {fileID: 1562563273}
@@ -3692,6 +3695,7 @@ MonoBehaviour:
   maxBindAngle: 0.5
   maxBindOffset: 0.005
   footGroundOffset: 0.1
+  hipsOverStance: 1
 --- !u!114 &1807426357
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3711,6 +3715,12 @@ MonoBehaviour:
   ghostShin: {fileID: 1141057434}
   ghostFoot: {fileID: 1027110034}
   balanceController: {fileID: 1807426354}
+  footPlacement: {fileID: 401535637}
+  stanceAnkleStiffness: 0.7
+  swingFeedForward: 1
+  landingStiffness: 0.3
+  landingRampTime: 0.15
+  softenFromSwing: 0.8
 --- !u!114 &1807426358
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3730,6 +3740,12 @@ MonoBehaviour:
   ghostShin: {fileID: 1562563273}
   ghostFoot: {fileID: 599828190}
   balanceController: {fileID: 1807426354}
+  footPlacement: {fileID: 1443963552}
+  stanceAnkleStiffness: 0.7
+  swingFeedForward: 1
+  landingStiffness: 0.3
+  landingRampTime: 0.15
+  softenFromSwing: 0.8
 --- !u!114 &1807426359
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3754,6 +3770,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2083852863}
+  - component: {fileID: 2083852864}
   m_Layer: 0
   m_Name: GhostHips
   m_TagString: Untagged
@@ -3780,6 +3797,18 @@ Transform:
   - {fileID: 1006297221}
   m_Father: {fileID: 1516610860}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2083852864
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2083852862}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 48948dfe9d76b07488dacd46a7955fa1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Animation.Rigging::UnityEngine.Animations.Rigging.RigTransform
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
