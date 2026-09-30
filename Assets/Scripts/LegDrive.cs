@@ -15,6 +15,9 @@ using UnityEngine;
 [DefaultExecutionOrder(10)]
 public class LegDrive : MonoBehaviour
 {
+    // The least knee bend a target may ask for, in degrees; see KneeTarget.
+    const float MinKneeFlexion = 5f;
+
     [Header("Physical")]
     [SerializeField] Transform thigh, shin, foot;
 
@@ -169,13 +172,35 @@ public class LegDrive : MonoBehaviour
 
         hip.SetTargetWorldRotation(ghostThigh.rotation, thighStart, hipFrame);
 
-        knee.SetTargetWorldRotation(
-            ghostShin.rotation, shinStart, knee.connectedBody.transform);
+        knee.SetTargetWorldRotation(KneeTarget(), shinStart, knee.connectedBody.transform);
 
         // The ankle trim composes HERE, on the right of the ghost rotation so it applies about the
         // foot's own axis. Composing it into the one write is what keeps this the sole writer of
         // the ankle — BalanceController decides the trim, it does not apply it.
         ankle.SetTargetWorldRotation(ghostFoot.rotation * balanceController.AnkleTrim, footStart, ankleFrame);
+    }
+
+    // The ghost shin's world rotation, unless that would bend the knee less than MinKneeFlexion.
+    //
+    // Backward: the target is resolved against the REAL thigh, so when the thigh lags the ghost's (a leg
+    // reaching forward to catch, say), the ghost shin's world rotation sits past straight relative to
+    // it, and the drive shoved the knee into its hyperextension limit.
+    //
+    // Straight: the ghost locks its knee whenever a target is out of reach, which in a stumble is often.
+    // A locked knee has no give, so a scuff or a hard landing drove it straight through the 5° limit
+    // (measured −16.8° on a mid-swing scuff). With a little bend held, an impact folds it forward.
+    //
+    // Flexion is +X about the knee axis, from a straight (identity) start pose.
+    Quaternion KneeTarget()
+    {
+        Quaternion thighNow = knee.connectedBody.rotation;
+        Quaternion local = Quaternion.Inverse(thighNow) * ghostShin.rotation;
+        if (local.w < 0f) local = new Quaternion(-local.x, -local.y, -local.z, -local.w);
+
+        float flexion = 2f * Mathf.Atan2(local.x, local.w) * Mathf.Rad2Deg;
+        return flexion >= MinKneeFlexion
+            ? ghostShin.rotation
+            : thighNow * Quaternion.AngleAxis(MinKneeFlexion, Vector3.right);
     }
 
     bool ReferencesAssigned() =>

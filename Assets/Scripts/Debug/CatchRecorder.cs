@@ -134,7 +134,7 @@ public class CatchRecorder : MonoBehaviour
             "ankleTrim,lStepping,lGroundZ,lFx,lFy,lFz,rStepping,rGroundZ,rFx,rFy,rFz," +
             "hipSag,lTargetAnkleY,lGhostAnkleY,lAnkleY,lSoleY,rTargetAnkleY,rGhostAnkleY,rAnkleY,rSoleY," +
             "lGhostThighPitch,lThighPitch,lGhostKnee,lKnee,lGhostFootPitch,lFootPitch,lTrackErr,rTrackErr," +
-            "lAnkleZ,rAnkleZ,comY,pelvisY\n");
+            "lAnkleZ,rAnkleZ,comY,pelvisY,lKneeFlex,rKneeFlex\n");
     }
 
     void FixedUpdate()
@@ -167,7 +167,9 @@ public class CatchRecorder : MonoBehaviour
                // Where the physical ankles actually are, against lGroundZ / rGroundZ (the targets).
                Anchor(ankleL).z, Anchor(ankleR).z,
                // Heights, for telling a fall (body down) from a stumble it recovers from.
-               sensor.CenterOfMass.y, pelvis.position.y);
+               sensor.CenterOfMass.y, pelvis.position.y,
+               // Signed knee flexion: negative is bent backward.
+               KneeFlexion(thighL, shinL), KneeFlexion(thighR, shinR));
 
         if (Time.time - startTime >= duration)
             Write();
@@ -181,6 +183,14 @@ public class CatchRecorder : MonoBehaviour
         (Quaternion.Angle(ghostThigh.rotation, thigh.rotation) +
          Quaternion.Angle(ghostShin.rotation, shin.rotation) +
          Quaternion.Angle(ghostFoot.rotation, foot.rotation)) / 3f;
+
+    // Degrees of knee bend about the knee axis, + forward (normal), − backward. Twist about X only.
+    static float KneeFlexion(Transform thigh, Transform shin)
+    {
+        Quaternion local = Quaternion.Inverse(thigh.rotation) * shin.rotation;
+        if (local.w < 0f) local = new Quaternion(-local.x, -local.y, -local.z, -local.w);
+        return 2f * Mathf.Atan2(local.x, local.w) * Mathf.Rad2Deg;
+    }
 
     // Forward pitch in degrees: + leans forward.
     static float Pitch(Rigidbody body) => Pitch(body.rotation);

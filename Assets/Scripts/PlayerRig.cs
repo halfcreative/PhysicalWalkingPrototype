@@ -30,6 +30,11 @@ public class PlayerRig : MonoBehaviour
     // the fraction of that error the ghost hips are shifted by. See FixedUpdate.
     [SerializeField, Range(0f, 2f)] float hipsOverStance = 1f;
 
+    // The most that shift may be, in metres. Past about a foot's half-length the planted legs can't pull
+    // the body back anyway; that's a step's job. Uncapped, a 2 m/s push put the ghost hips 0.5 m behind
+    // the body, and the planted leg kicked so hard it launched the character off the ground.
+    const float MaxHipShift = 0.08f;
+
     public float FootGroundOffset => footGroundOffset;
     public Transform GhostHips => ghostHips;
 
@@ -106,11 +111,16 @@ public class PlayerRig : MonoBehaviour
     void FixedUpdate()
     {
         Vector3 hip = HipCentre();
-        Vector3 error = (balanceController.StanceCentre() - balanceSensor.CapturePoint).Flat();
-        Vector3 over = hip + error * hipsOverStance;
+        Vector3 stance = balanceController.StanceCentre();
+        Vector3 error = (stance - balanceSensor.CapturePoint).Flat();
+        Vector3 over = hip + Vector3.ClampMagnitude(error * hipsOverStance, MaxHipShift);
 
+        // Height from where the planted feet are ON THE GROUND, not from the physical ankles. In a
+        // stumble both feet leave the ground for a moment; measured off the ankles, the ghost hips rose
+        // with them, the planted leg's target went out of reach, and its foot hovered while the body ran
+        // over it.
         ghostHips.SetPositionAndRotation(
-            new Vector3(over.x, SupportPlaneY() + balanceController.StandingHipHeight, over.z),
+            new Vector3(over.x, stance.y + balanceController.StandingHipHeight, over.z),
             PelvisYaw());
 
         HipSag = Mathf.Max(0f, ghostHips.position.y - hip.y);
@@ -122,8 +132,8 @@ public class PlayerRig : MonoBehaviour
     Vector3 HipCentre() =>
         (AnchorOf(thighL, pelvis.transform) + AnchorOf(thighR, pelvis.transform)) * 0.5f;
 
-    // The lower sole while both feet are down. Read off the ankle anchors rather than the foot
-    // transforms, because the foot box's centre is not the ankle.
+    // The lower physical sole, for the gizmo: it's what shows how far the body has sagged. Read off the
+    // ankle anchors rather than the foot transforms, because the foot box's centre is not the ankle.
     float SupportPlaneY() =>
         Mathf.Min(AnchorOf(footL, shinL).y, AnchorOf(footR, shinR).y) - footGroundOffset;
 

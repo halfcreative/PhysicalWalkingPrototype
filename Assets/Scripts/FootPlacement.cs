@@ -41,6 +41,10 @@ public class FootPlacement : MonoBehaviour
     // so a short shuffle doesn't lift like a full stride and read as marching.
     const float StepHeightVariance = 0.03f;
     const float MaxLiftPerStepLength = 0.8f;
+    // The most of the rig's hip sag the lift makes up for. Standing sag is ~3.5 cm. In a hard stumble the
+    // body sinks 15+ cm; lifting the foot that much more bent the knee to 90°, the foot landed on a
+    // bent knee that buckled, and the body sank further.
+    const float MaxSagLift = 0.05f;
     // How hard an in-flight foot re-aims at the moving capture point, faded to zero by landing.
     const float RetargetStrength = 10f;
     const float KneeHintDistance = 0.3f;
@@ -189,9 +193,14 @@ public class FootPlacement : MonoBehaviour
         Vector3 error = com - ClosestOnSegment(com, mySole, otherSole);
         if (error.magnitude < stepTriggerDistance) return;
 
-        if (!IsMyTurn(error, capture, mySole, otherSole)) return;
+        // Which foot, though, by where the body is heading. The centre of mass rests a few cm ahead of the
+        // soles, and against that bias a sideways shove still read as "mostly forward": the far foot
+        // stepped first and the next step crossed the legs.
+        Vector3 heading = capture - ClosestOnSegment(capture, mySole, otherSole);
+        if (!IsMyTurn(heading, capture, mySole, otherSole)) return;
 
-        Vector3 landing = ComputeLanding(capture, groundPoint, out Vector3 normal);
+        Vector3 landing = ComputeLanding(capture, groundPoint, SwingDuration(BodyVelocity.magnitude),
+                                         out Vector3 normal);
         if ((landing - groundPoint).Flat().magnitude < MinStepLength) return;
 
         if (logSteps)
@@ -231,20 +240,29 @@ public class FootPlacement : MonoBehaviour
 
     // --- Landing ---------------------------------------------------------------------------------------
 
-    // Where a foot lifting off from `liftoff` should land to catch the body. The capture point keeps
-    // moving while the foot is in the air, so this is re-run during the swing (see AdvanceSwing).
-    Vector3 ComputeLanding(Vector3 capture, Vector3 liftoff, out Vector3 normal)
+    // Where a foot lifting off from `liftoff` should land to catch the body, `timeToLand` seconds from
+    // now. The capture point keeps moving while the foot is in the air, so this is re-run during the
+    // swing (see AdvanceSwing).
+    //
+    // Everything is judged where the body will be at touchdown, not where it is now: the capture point
+    // and the hips both carry on at the body's velocity. Judged from the present at 1.3 m/s, the reach
+    // clamp held the foot to where the hip WAS, the body travelled 0.4 m during the swing, and every
+    // catch step landed under or behind it. None of them braked, and the trailing foot was left 0.8 m
+    // back and tripped on its way through.
+    Vector3 ComputeLanding(Vector3 capture, Vector3 liftoff, float timeToLand, out Vector3 normal)
     {
+        Vector3 drift = BodyVelocity * timeToLand;
+
         // Put the sole centre on the capture point, offset out to this leg's side of it.
         Vector3 liftoffSole = (liftoff + Forward * SoleCentreForward).Flat();
-        Vector3 sole = liftoffSole + (capture - liftoffSole) * captureGain
+        Vector3 sole = liftoffSole + (capture + drift - liftoffSole) * captureGain
                      + ghostHips.right * (side * hipHalfWidth);
         Vector3 landing = sole - Forward * SoleCentreForward;
         landing.y = liftoff.y;
 
-        landing = ClampStanceWidth(landing);
+        landing = ClampStanceWidth(landing, drift);
         landing = ClampStride(landing);
-        landing = ClampToReach(landing);
+        landing = ClampToReach(landing, drift);
 
         normal = Vector3.up;
         if (Physics.Raycast(landing + Vector3.up * 0.5f, Vector3.down, out RaycastHit hit, 1f,
@@ -257,12 +275,12 @@ public class FootPlacement : MonoBehaviour
         return landing;
     }
 
-    // Clamps the landing's sideways distance from the hip centreline: the real hips, with the ghost
-    // hips' yaw.
-    Vector3 ClampStanceWidth(Vector3 landing)
+    // Clamps the landing's sideways distance from the hip centreline: the real hips, moved on by `drift`,
+    // with the ghost hips' yaw.
+    Vector3 ClampStanceWidth(Vector3 landing, Vector3 drift)
     {
         Vector3 right = ghostHips.right;
-        float halfWidth = side * Vector3.Dot(landing - RealHips, right);
+        float halfWidth = side * Vector3.Dot(landing - (RealHips + drift), right);
         float clamped = Mathf.Clamp(halfWidth, MinStanceHalfWidth, MaxStanceHalfWidth);
         return landing + right * (side * (clamped - halfWidth));
     }
@@ -281,10 +299,11 @@ public class FootPlacement : MonoBehaviour
         return ahead > limit ? landing - dir * (ahead - limit) : landing;
     }
 
-    // The horizontal budget from the hip, given how far below it the ankle has to reach.
-    Vector3 ClampToReach(Vector3 landing)
+    // The horizontal budget from the hip (moved on by `drift`), given how far below it the ankle has to
+    // reach.
+    Vector3 ClampToReach(Vector3 landing, Vector3 drift)
     {
-        Vector3 hip = ghostThigh.position - playerRig.GhostHipOffset;
+        Vector3 hip = ghostThigh.position - playerRig.GhostHipOffset + drift;
         float drop = hip.y - (landing.y + FootGroundOffset);
         float reach = playerRig.LegLength * MaxLegExtension;
         float maxHorizontal = Mathf.Sqrt(Mathf.Max(0f, reach * reach - drop * drop));
@@ -334,12 +353,14 @@ public class FootPlacement : MonoBehaviour
     // sin(πt), so it's gone again by touchdown and the foot still lands on the ground.
     void AdvanceSwing()
     {
-        stepProgress += Time.fixedDeltaTime / SwingDuration(BodyVelocity.magnitude);
+        float swing = SwingDuration(BodyVelocity.magnitude);
+        stepProgress += Time.fixedDeltaTime / swing;
         float t = Mathf.Clamp01(stepProgress);
 
         if (chasesCapturePoint)
         {
-            Vector3 aim = ComputeLanding(balanceSensor.CapturePoint.Flat(), liftoffPoint, out Vector3 aimNormal);
+            Vector3 aim = ComputeLanding(balanceSensor.CapturePoint.Flat(), liftoffPoint, (1f - t) * swing,
+                                         out Vector3 aimNormal);
             float fade = 1f - t * t * (3f - 2f * t);
             float weight = Mathf.Clamp01(RetargetStrength * Time.fixedDeltaTime * fade);
             landingPoint = Vector3.Lerp(landingPoint, aim, weight);
@@ -349,7 +370,7 @@ public class FootPlacement : MonoBehaviour
         float travel = t * t * (3f - 2f * t);
         Vector3 point = Vector3.Lerp(liftoffPoint, landingPoint, travel);
         float arc = Mathf.Sin(t * Mathf.PI);
-        point.y += Mathf.Sqrt(arc) * PeakLift() + arc * playerRig.HipSag;
+        point.y += Mathf.Sqrt(arc) * PeakLift() + arc * Mathf.Min(playerRig.HipSag, MaxSagLift);
         groundPoint = point;
 
         if (stepProgress >= 1f)
