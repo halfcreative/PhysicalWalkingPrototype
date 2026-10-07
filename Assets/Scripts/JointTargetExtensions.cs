@@ -9,8 +9,8 @@ using UnityEngine;
 // community SetTargetRotationLocal helper. Change either axis on a joint and this stops holding.
 public static class JointTargetExtensions
 {
-    // startLocalRotation is the driven body's localRotation captured at Awake, before physics has
-    // moved anything. It is identity on this rig, so it currently cancels out — pass it anyway,
+    // startLocalRotation is the driven body's rotation relative to its connected body, captured at
+    // Awake before physics has moved anything. It is identity on this rig, so it currently cancels out — pass it anyway,
     // so that authoring a real bind pose later doesn't silently make this wrong.
     //
     // connectedBody must be read fresh each tick, never cached. If the thigh is lagging its

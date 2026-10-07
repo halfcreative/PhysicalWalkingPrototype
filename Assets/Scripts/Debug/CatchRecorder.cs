@@ -22,7 +22,7 @@ public class CatchRecorder : MonoBehaviour
     PlayerRig rig;
     Transform ghostFootL, ghostFootR, ghostThighL, ghostShinL, thighL, shinL, footL;
     Transform ghostThighR, ghostShinR, thighR, shinR, footR;
-    ConfigurableJoint hipL, hipR, ankleL, ankleR;
+    ConfigurableJoint hipL, hipR, kneeL, kneeR, ankleL, ankleR;
     Collider soleL, soleR;
 
     // Ground impulse on each foot, summed over the physics step since the last FixedUpdate.
@@ -65,13 +65,13 @@ public class CatchRecorder : MonoBehaviour
                 case "GhostFoot_R": ghostFootR = t; break;
                 case "GhostThigh_L": ghostThighL = t; break;
                 case "GhostShin_L": ghostShinL = t; break;
-                case "Shin_L": shinL = t; break;
+                case "Shin_L": shinL = t; kneeL = t.GetComponent<ConfigurableJoint>(); break;
                 case "Foot_L": footL = t; break;
                 case "Thigh_L": thighL = t; hipL = t.GetComponent<ConfigurableJoint>(); break;
                 case "Thigh_R": thighR = t; hipR = t.GetComponent<ConfigurableJoint>(); break;
                 case "GhostThigh_R": ghostThighR = t; break;
                 case "GhostShin_R": ghostShinR = t; break;
-                case "Shin_R": shinR = t; break;
+                case "Shin_R": shinR = t; kneeR = t.GetComponent<ConfigurableJoint>(); break;
                 case "Foot_R": footR = t; break;
             }
         }
@@ -134,7 +134,7 @@ public class CatchRecorder : MonoBehaviour
             "ankleTrim,lStepping,lGroundZ,lFx,lFy,lFz,rStepping,rGroundZ,rFx,rFy,rFz," +
             "hipSag,lTargetAnkleY,lGhostAnkleY,lAnkleY,lSoleY,rTargetAnkleY,rGhostAnkleY,rAnkleY,rSoleY," +
             "lGhostThighPitch,lThighPitch,lGhostKnee,lKnee,lGhostFootPitch,lFootPitch,lTrackErr,rTrackErr," +
-            "lAnkleZ,rAnkleZ,comY,pelvisY,lKneeFlex,rKneeFlex\n");
+            "lAnkleZ,rAnkleZ,comY,pelvisY,lKneeFlex,rKneeFlex,lKneeOffAxis,rKneeOffAxis,lKneeGap,rKneeGap\n");
     }
 
     void FixedUpdate()
@@ -169,7 +169,11 @@ public class CatchRecorder : MonoBehaviour
                // Heights, for telling a fall (body down) from a stumble it recovers from.
                sensor.CenterOfMass.y, pelvis.position.y,
                // Signed knee flexion: negative is bent backward.
-               KneeFlexion(thighL, shinL), KneeFlexion(thighR, shinR));
+               KneeFlexion(thighL, shinL), KneeFlexion(thighR, shinR),
+               // How far the knee has turned off its hinge (twist or sideways fold), degrees, and how far
+               // the joint has pulled apart, millimetres.
+               KneeOffAxis(thighL, shinL), KneeOffAxis(thighR, shinR),
+               JointGap(kneeL) * 1000f, JointGap(kneeR) * 1000f);
 
         if (Time.time - startTime >= duration)
             Write();
@@ -191,6 +195,19 @@ public class CatchRecorder : MonoBehaviour
         if (local.w < 0f) local = new Quaternion(-local.x, -local.y, -local.z, -local.w);
         return 2f * Mathf.Atan2(local.x, local.w) * Mathf.Rad2Deg;
     }
+
+    // The rest of the knee's rotation once its bend about X is taken out.
+    static float KneeOffAxis(Transform thigh, Transform shin)
+    {
+        Quaternion local = Quaternion.Inverse(thigh.rotation) * shin.rotation;
+        Quaternion bend = Quaternion.AngleAxis(KneeFlexion(thigh, shin), Vector3.right);
+        return Quaternion.Angle(Quaternion.identity, local * Quaternion.Inverse(bend));
+    }
+
+    // Distance between a joint's anchor on its own body and on its connected body.
+    static float JointGap(ConfigurableJoint joint) =>
+        Vector3.Distance(joint.transform.TransformPoint(joint.anchor),
+                         joint.connectedBody.transform.TransformPoint(joint.connectedAnchor));
 
     // Forward pitch in degrees: + leans forward.
     static float Pitch(Rigidbody body) => Pitch(body.rotation);

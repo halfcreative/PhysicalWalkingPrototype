@@ -33,6 +33,10 @@ public class BalanceController : MonoBehaviour
     // over the feet. Tipping the full 62 kg about the ankles costs ~580 N·m/rad, i.e. ~150 N·m at 15°.
     // Standing needs ~80. Uncapped, nothing could knock the character over.
     [SerializeField] float maxUprightTorque = 150f;
+    // The same cap for sideways tilt (roll), separately. A forward catch wants a strong pitch assist to
+    // keep the body from folding over its stepping legs. The same strength sideways, standing on one leg,
+    // tipped the whole body over its stance foot and threw it sideways.
+    [SerializeField] float maxRollTorque = 150f;
 
     public float StandingHipHeight => standingHipHeight;
 
@@ -69,10 +73,19 @@ public class BalanceController : MonoBehaviour
     // Reads the Rigidbody's rotation rather than the transform's, which can be interpolated away from
     // the physics pose. Cross gives sin(tilt) about the correcting axis, so it weakens past 90° — by
     // then the character has already fallen, so that's fine for now.
+    //
+    // Pitch (about the body's right) and roll (about its forward) are capped separately; see
+    // maxRollTorque. The damper's yaw part rides along with the roll cap.
     void HoldPelvisUpright()
     {
         Vector3 tiltAxis = Vector3.Cross(pelvis.rotation * Vector3.up, Vector3.up);
         Vector3 torque = tiltAxis * uprightSpring - pelvis.angularVelocity * uprightDamper;
-        pelvis.AddTorque(Vector3.ClampMagnitude(torque, maxUprightTorque), ForceMode.Force);
+
+        Vector3 right = (pelvis.rotation * Vector3.right).Flat().normalized;
+        Vector3 pitch = Vector3.Project(torque, right);
+        Vector3 rest = torque - pitch;
+
+        pelvis.AddTorque(Vector3.ClampMagnitude(pitch, maxUprightTorque)
+                         + Vector3.ClampMagnitude(rest, maxRollTorque), ForceMode.Force);
     }
 }

@@ -17,6 +17,11 @@ public class LegDrive : MonoBehaviour
 {
     // The least knee bend a target may ask for, in degrees; see KneeTarget.
     const float MinKneeFlexion = 5f;
+    // Peak toe-up of a swinging foot, in degrees; see the ankle write in FixedUpdate.
+    const float SwingToeLift = 15f;
+    // Cap on a feed-forward velocity target, rad/s. A fast swing turns a knee ~90° in a third of a second,
+    // about 5 rad/s; anything far past that is a glitch, not a motion.
+    const float MaxFeedForward = 12f;
 
     [Header("Physical")]
     [SerializeField] Transform thigh, shin, foot;
@@ -90,10 +95,11 @@ public class LegDrive : MonoBehaviour
 
         // Captured before physics has moved anything, which is what makes these the start pose the
         // drives measure against. Identity on this rig, so they currently cancel — see
-        // JointTargetExtensions for why they are passed anyway.
-        thighStart = thigh.localRotation;
-        shinStart = shin.localRotation;
-        footStart = foot.localRotation;
+        // JointTargetExtensions for why they are passed anyway. Measured against the joint's connected
+        // body, not the transform parent: the bodies sit flat under Player, not nested in each other.
+        thighStart = StartRotation(hip);
+        shinStart = StartRotation(knee);
+        footStart = StartRotation(ankle);
 
         hipDrive = hip.slerpDrive;
         kneeDrive = knee.slerpDrive;
@@ -104,6 +110,9 @@ public class LegDrive : MonoBehaviour
         prevGhostFoot = ghostFoot.rotation;
     }
 
+    static Quaternion StartRotation(ConfigurableJoint joint) =>
+        Quaternion.Inverse(joint.connectedBody.transform.rotation) * joint.transform.rotation;
+
     // The ghost bone's angular velocity relative to the joint's connected body, in that body's frame, as
     // the joint's velocity target. Relative, because the drive acts between the two bodies; in the
     // connected body's frame, like targetRotation. On this rig the legs hinge almost purely about X, which
@@ -111,7 +120,14 @@ public class LegDrive : MonoBehaviour
     //
     // NEGATED, like targetRotation's inverse. Measured, not assumed: the un-negated velocity made swing
     // tracking worse (4.2° → 6.9°) and the negated one better (→ 1.7°).
-    static Vector3 TargetVelocity(ConfigurableJoint joint, Quaternion ghost, ref Quaternion prevGhost, float scale)
+    //
+    // A hinge (knee, ankle) keeps only its bend axis, and every result is capped at MaxFeedForward. Taken
+    // whole, the velocity asked the knee to twist and roll whenever the ghost or the thigh turned sharply
+    // off-axis (an impact, a near-straight IK flip). The drive fought the knee's ±5° side limits with it
+    // and pulled the joint apart: measured 108° of twist and a 5 cm gap on a 2 m/s catch, gone with the
+    // feed-forward off.
+    static Vector3 TargetVelocity(ConfigurableJoint joint, Quaternion ghost, ref Quaternion prevGhost, float scale,
+                                  bool hinge)
     {
         (ghost * Quaternion.Inverse(prevGhost)).ToAngleAxis(out float degrees, out Vector3 axis);
         prevGhost = ghost;
@@ -121,7 +137,9 @@ public class LegDrive : MonoBehaviour
 
         Vector3 ghostVelocity = axis * (degrees * Mathf.Deg2Rad / Time.fixedDeltaTime);
         Rigidbody parent = joint.connectedBody;
-        return -scale * (Quaternion.Inverse(parent.rotation) * (ghostVelocity - parent.angularVelocity));
+        Vector3 velocity = -scale * (Quaternion.Inverse(parent.rotation) * (ghostVelocity - parent.angularVelocity));
+        if (hinge) velocity = new Vector3(velocity.x, 0f, 0f);
+        return Vector3.ClampMagnitude(velocity, MaxFeedForward);
     }
 
     // Scales a joint's authored drive. The damper goes by the square root, which keeps the damping ratio.
@@ -155,9 +173,9 @@ public class LegDrive : MonoBehaviour
 
         // A planted leg gets no feed-forward: its damper resisting motion is what steadies the stance.
         float feedForward = swinging ? swingFeedForward : 0f;
-        hip.targetAngularVelocity = TargetVelocity(hip, ghostThigh.rotation, ref prevGhostThigh, feedForward);
-        knee.targetAngularVelocity = TargetVelocity(knee, ghostShin.rotation, ref prevGhostShin, feedForward);
-        ankle.targetAngularVelocity = TargetVelocity(ankle, ghostFoot.rotation, ref prevGhostFoot, feedForward);
+        hip.targetAngularVelocity = TargetVelocity(hip, ghostThigh.rotation, ref prevGhostThigh, feedForward, false);
+        knee.targetAngularVelocity = TargetVelocity(knee, ghostShin.rotation, ref prevGhostShin, feedForward, true);
+        ankle.targetAngularVelocity = TargetVelocity(ankle, ghostFoot.rotation, ref prevGhostFoot, feedForward, true);
 
         // A planted leg resolves its hip and ankle targets against the GHOST's hips and shin, which makes
         // them joint angles to hold rather than world rotations to reach. That is what lets a planted leg
@@ -167,40 +185,58 @@ public class LegDrive : MonoBehaviour
         //   shin (and the body on it) toward there. Against the real shin, a flat foot on flat ground
         //   is already on target, and nothing moves the body back over its feet.
         // Measured: resolved against the real bodies, the character can't stand without stepping.
+        //
+        // A swinging leg does the same at the knee: it copies the ghost's knee ANGLE (against the ghost
+        // thigh). Against the real thigh, a thigh still stretched back behind the ghost's made the ghost
+        // shin read as barely bent, so the knee stayed straight for the first 0.15 s of the swing and
+        // the foot scraped. The swing's clearance comes from the knee bending on time.
         Transform hipFrame = swinging ? hip.connectedBody.transform : ghostThigh.parent;
+        Transform kneeFrame = swinging ? ghostThigh : knee.connectedBody.transform;
         Transform ankleFrame = swinging ? ankle.connectedBody.transform : ghostShin;
 
         hip.SetTargetWorldRotation(ghostThigh.rotation, thighStart, hipFrame);
 
-        knee.SetTargetWorldRotation(KneeTarget(), shinStart, knee.connectedBody.transform);
+        knee.SetTargetWorldRotation(KneeTarget(kneeFrame.rotation), shinStart, kneeFrame);
 
         // The ankle trim composes HERE, on the right of the ghost rotation so it applies about the
         // foot's own axis. Composing it into the one write is what keeps this the sole writer of
         // the ankle — BalanceController decides the trim, it does not apply it.
-        ankle.SetTargetWorldRotation(ghostFoot.rotation * balanceController.AnkleTrim, footStart, ankleFrame);
+        //
+        // Only on a planted foot: the trim balances the body through the ground. On a swinging foot it
+        // just pointed the toes down (its +12° max, during a stumble), and the toe scuffed. A swinging
+        // foot instead pulls its toes up, most at mid-swing and back to flat for touchdown, the way a
+        // real swing clears the ground. That also covers the ~10° the foot sags toe-down behind its
+        // target in a fast swing.
+        Quaternion footPitch = swinging
+            ? Quaternion.Euler(-SwingToeLift * Mathf.Sin(Mathf.PI * footPlacement.SwingProgress), 0f, 0f)
+            : balanceController.AnkleTrim;
+        ankle.SetTargetWorldRotation(ghostFoot.rotation * footPitch, footStart, ankleFrame);
     }
 
-    // The ghost shin's world rotation, unless that would bend the knee less than MinKneeFlexion.
+    // The ghost shin's world rotation, unless that would bend the knee less than MinKneeFlexion against
+    // `frame`, the rotation the target is resolved in.
     //
-    // Backward: the target is resolved against the REAL thigh, so when the thigh lags the ghost's (a leg
-    // reaching forward to catch, say), the ghost shin's world rotation sits past straight relative to
-    // it, and the drive shoved the knee into its hyperextension limit.
+    // Backward: resolved against the REAL thigh (a planted leg), a thigh lagging the ghost's left the
+    // ghost shin's world rotation past straight relative to it, and the drive shoved the knee into its
+    // hyperextension limit.
     //
     // Straight: the ghost locks its knee whenever a target is out of reach, which in a stumble is often.
     // A locked knee has no give, so a scuff or a hard landing drove it straight through the 5° limit
     // (measured −16.8° on a mid-swing scuff). With a little bend held, an impact folds it forward.
     //
     // Flexion is +X about the knee axis, from a straight (identity) start pose.
-    Quaternion KneeTarget()
+    //
+    // And only ever a bend: the knee is a hinge, so the target keeps the bend about X and drops the rest.
+    // Against the real thigh of a planted leg leaning sideways, the ghost shin's world rotation also
+    // carried twist and sideways fold, and the drive pressed the knee's ±5° side limits with them
+    // (36 ticks past 10° on a 1 m/s sideways push).
+    Quaternion KneeTarget(Quaternion frame)
     {
-        Quaternion thighNow = knee.connectedBody.rotation;
-        Quaternion local = Quaternion.Inverse(thighNow) * ghostShin.rotation;
+        Quaternion local = Quaternion.Inverse(frame) * ghostShin.rotation;
         if (local.w < 0f) local = new Quaternion(-local.x, -local.y, -local.z, -local.w);
 
         float flexion = 2f * Mathf.Atan2(local.x, local.w) * Mathf.Rad2Deg;
-        return flexion >= MinKneeFlexion
-            ? ghostShin.rotation
-            : thighNow * Quaternion.AngleAxis(MinKneeFlexion, Vector3.right);
+        return frame * Quaternion.AngleAxis(Mathf.Max(flexion, MinKneeFlexion), Vector3.right);
     }
 
     bool ReferencesAssigned() =>

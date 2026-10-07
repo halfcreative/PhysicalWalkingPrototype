@@ -64,6 +64,9 @@ public class FootPlacement : MonoBehaviour
     // Fraction of the leg a landing may use. 0.9 would leave no reach at all: standing already uses
     // 0.75 m of drop against a 0.82 m leg. 0.98 allows ~0.29 m of horizontal reach from the hip.
     const float MaxLegExtension = 0.98f;
+    // Fraction of the leg a mid-swing point may use: short enough that the knee stays bent (~40°). See
+    // KeepSwingInReach.
+    const float SwingLegExtension = 0.9f;
 
     // --- Step Selection Margins ---
     // Preference margin for distance to capture point and planting recency when selecting which foot steps.
@@ -277,23 +280,35 @@ public class FootPlacement : MonoBehaviour
 
     // Clamps the landing's sideways distance from the hip centreline: the real hips, moved on by `drift`,
     // with the ghost hips' yaw.
+    //
+    // Then never across the other foot: at least twice the minimum half-width to this leg's own side of
+    // it. Against the hips alone, a sideways drift moves the predicted hips over, and a left foot landed
+    // 18 cm to the right of the right one; crossed legs under a sideways load twisted both knees.
     Vector3 ClampStanceWidth(Vector3 landing, Vector3 drift)
     {
         Vector3 right = ghostHips.right;
         float halfWidth = side * Vector3.Dot(landing - (RealHips + drift), right);
         float clamped = Mathf.Clamp(halfWidth, MinStanceHalfWidth, MaxStanceHalfWidth);
-        return landing + right * (side * (clamped - halfWidth));
+        landing += right * (side * (clamped - halfWidth));
+
+        float fromOther = side * Vector3.Dot(landing - otherFoot.GroundPoint, right);
+        float minFromOther = 2f * MinStanceHalfWidth;
+        return fromOther >= minFromOther ? landing : landing + right * (side * (minFromOther - fromOther));
     }
 
     // How far past the other foot, along the direction of travel, this landing may be. Below a crawl
     // there is no direction of travel, and a catch step must be free to go where the capture point is.
+    //
+    // Travel is measured along the body's forward axis only: a stride is a walking length. Measured along
+    // the velocity, a sideways shove got the forward stride ceiling applied across the stance (0.37 m from
+    // a foot already 0.22 m away), and the first catch step could only get 15 cm out.
     Vector3 ClampStride(Vector3 landing)
     {
-        Vector3 velocity = BodyVelocity;
-        float speed = velocity.magnitude;
+        float along = Vector3.Dot(BodyVelocity, Forward);
+        float speed = Mathf.Abs(along);
         if (speed < CrawlSpeed) return landing;
 
-        Vector3 dir = velocity / speed;
+        Vector3 dir = Forward * Mathf.Sign(along);
         float ahead = Vector3.Dot(landing - otherFoot.GroundPoint, dir);
         float limit = StrideLength(speed);
         return ahead > limit ? landing - dir * (ahead - limit) : landing;
@@ -371,7 +386,7 @@ public class FootPlacement : MonoBehaviour
         Vector3 point = Vector3.Lerp(liftoffPoint, landingPoint, travel);
         float arc = Mathf.Sin(t * Mathf.PI);
         point.y += Mathf.Sqrt(arc) * PeakLift() + arc * Mathf.Min(playerRig.HipSag, MaxSagLift);
-        groundPoint = point;
+        groundPoint = KeepSwingInReach(point, arc);
 
         if (stepProgress >= 1f)
         {
@@ -379,6 +394,25 @@ public class FootPlacement : MonoBehaviour
             groundPoint = landingPoint;
             LastLandTime = Time.time;
         }
+    }
+
+    // Pulls a swing point toward the hip until the leg can reach it with its knee bent. After a hard catch
+    // the trailing foot lifts off 0.5 m or more behind the hip, and the early swing points are out of
+    // reach: the ghost leg locked straight, the real foot was dragged forward on a straight leg, clipped
+    // the ground at the bottom of the arc and twisted the knee. Pulled in along the line to the hip, the
+    // point moves up and forward, which is where a real swing takes the foot. Eased in and out with the
+    // arc, so the exact liftoff and touchdown points are untouched.
+    Vector3 KeepSwingInReach(Vector3 point, float arc)
+    {
+        Vector3 offset = Vector3.up * FootGroundOffset + playerRig.GhostHipOffset;
+        Vector3 hip = ghostThigh.position;
+        Vector3 ankle = point + offset;
+
+        // √arc, like the lift: the real knee takes ~0.15 s to start bending, so the ghost has to ask early.
+        float reach = playerRig.LegLength * Mathf.Lerp(MaxLegExtension, SwingLegExtension, Mathf.Sqrt(arc));
+        Vector3 fromHip = ankle - hip;
+        if (fromHip.sqrMagnitude <= reach * reach) return point;
+        return hip + fromHip.normalized * reach - offset;
     }
 
     // This step's lift, capped by how far it actually travels. Re-read every tick because the landing
