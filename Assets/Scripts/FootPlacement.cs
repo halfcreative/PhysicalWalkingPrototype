@@ -6,6 +6,8 @@ using UnityEngine;
 //
 // It also decides when to step: if the capture point has escaped the stance, a foot steps to it. Land
 // on it and the body stops; land short of it (captureGain < 1) and the body keeps going, which is walking.
+// A planted foot holds its own facing, and steps again (a turn step) once the body has turned too far
+// away from it.
 //
 // The trigger is the capture point, not stride length: a body that can fall has to step where it is
 // falling, not where a gait cycle says the next foot goes. Stride and cadence only shape the step once
@@ -91,6 +93,9 @@ public class FootPlacement : MonoBehaviour
     // The duty factor is a walking relation and asks for long swings at recovery speeds. Lower this
     // first if a catch step arrives too late.
     [SerializeField] float maxSwingDuration = 0.7f;
+    // How far, in degrees, the body may turn away from a planted foot before that foot steps to follow
+    // it. The hip twists ±30°; past that the twist lands on the knee (±5°).
+    [SerializeField, Range(5f, 30f)] float turnStepAngle = 25f;
 
     [Header("Debug")]
     // Off leaves the foot to StepTester alone.
@@ -99,6 +104,10 @@ public class FootPlacement : MonoBehaviour
 
     Vector3 groundPoint;
     Vector3 groundNormal = Vector3.up;
+    // The yaw this foot holds while planted. It follows the body only while swinging: planted, a foot
+    // stays where it was put, and the hip, not the knee or ankle, takes the body turning over it.
+    Quaternion facing = Quaternion.identity;
+    Quaternion liftoffFacing = Quaternion.identity;
     Vector3 liftoffPoint;
     Vector3 landingPoint;
     bool isStepping;
@@ -118,10 +127,14 @@ public class FootPlacement : MonoBehaviour
     public float SwingProgress => isStepping ? Mathf.Clamp01(stepProgress) : 1f;
     public Vector3 GroundPoint => groundPoint;
     // The sole's centre on the ground: where this foot bears weight, for balance.
-    public Vector3 SupportPoint => groundPoint + Forward * SoleCentreForward;
+    public Vector3 SupportPoint => groundPoint + FootForward * SoleCentreForward;
     public float LastLandTime { get; private set; }
+    // Degrees between this foot's facing and the body's. Both are yaw-only.
+    public float TurnAngle => Quaternion.Angle(facing, ghostHips.rotation);
 
     Vector3 Forward => ghostHips.forward;
+    Vector3 FootForward => facing * Vector3.forward;
+    Vector3 FootRight => facing * Vector3.right;
     // Where the body's hips really are. The ghost hips can sit off them (PlayerRig.GhostHipOffset).
     Vector3 RealHips => ghostHips.position - playerRig.GhostHipOffset;
     Vector3 BodyVelocity => balanceSensor.CenterOfMassVelocity.Flat();
@@ -148,6 +161,7 @@ public class FootPlacement : MonoBehaviour
         // Start planted wherever the target was authored.
         groundPoint = transform.position - Vector3.up * FootGroundOffset;
         landingPoint = liftoffPoint = groundPoint;
+        facing = liftoffFacing = YawOf(transform.forward);
     }
 
     void FixedUpdate()
@@ -165,7 +179,7 @@ public class FootPlacement : MonoBehaviour
         Vector3 ikShift = isStepping ? playerRig.GhostHipOffset : Vector3.zero;
         transform.SetPositionAndRotation(
             groundPoint + Vector3.up * FootGroundOffset + ikShift,
-            Quaternion.FromToRotation(Vector3.up, groundNormal) * ghostHips.rotation);
+            Quaternion.FromToRotation(Vector3.up, groundNormal) * facing);
 
         PoseKneeHint();
     }
@@ -194,22 +208,30 @@ public class FootPlacement : MonoBehaviour
         // foot of a wide stance is fine, and measuring from the midpoint made that foot march in place.
         Vector3 com = balanceSensor.CenterOfMass.Flat();
         Vector3 error = com - ClosestOnSegment(com, mySole, otherSole);
-        if (error.magnitude < stepTriggerDistance) return;
+        bool falling = error.magnitude >= stepTriggerDistance;
 
-        // Which foot, though, by where the body is heading. The centre of mass rests a few cm ahead of the
-        // soles, and against that bias a sideways shove still read as "mostly forward": the far foot
-        // stepped first and the next step crossed the legs.
-        Vector3 heading = capture - ClosestOnSegment(capture, mySole, otherSole);
-        if (!IsMyTurn(heading, capture, mySole, otherSole)) return;
+        if (falling)
+        {
+            // Which foot, though, by where the body is heading. The centre of mass rests a few cm ahead of
+            // the soles, and against that bias a sideways shove still read as "mostly forward": the far
+            // foot stepped first and the next step crossed the legs.
+            Vector3 heading = capture - ClosestOnSegment(capture, mySole, otherSole);
+            if (!IsMyTurn(heading, capture, mySole, otherSole)) return;
+        }
+        else if (!IsMyTurnStep()) return;
 
+        // A turn step lands where a catch step would: on the capture point, out by this hip's half-width
+        // along the body's NEW right, so the foot ends up under its hip in the new heading.
         Vector3 landing = ComputeLanding(capture, groundPoint, SwingDuration(BodyVelocity.magnitude),
                                          out Vector3 normal);
-        if ((landing - groundPoint).Flat().magnitude < MinStepLength) return;
+        // A turn step may land almost where it lifted off: what it moves is the facing, so it isn't skipped.
+        if (falling && (landing - groundPoint).Flat().magnitude < MinStepLength) return;
 
         if (logSteps)
         {
             float speed = BodyVelocity.magnitude;
-            Debug.Log($"[{Time.time:F2}] {name} steps  capture {capture:F3}  error {error:F3} " +
+            Debug.Log($"[{Time.time:F2}] {name} {(falling ? "steps" : "turn-steps")}  turn {TurnAngle:F1}°  " +
+                      $"capture {capture:F3}  error {error:F3} " +
                       $"(|{error.magnitude:F3}|)  from {groundPoint:F3} to {landing:F3}  " +
                       $"COM vel {balanceSensor.CenterOfMassVelocity:F2}  stride cap {StrideLength(speed):F2} " +
                       $"swing {SwingDuration(speed):F2}s", this);
@@ -239,6 +261,18 @@ public class FootPlacement : MonoBehaviour
         if (LastLandTime < otherFoot.LastLandTime - TurnTimeMargin) return true;
         if (otherFoot.LastLandTime < LastLandTime - TurnTimeMargin) return false;
         return side < 0f;
+    }
+
+    // The turn step: the body has turned turnStepAngle away from this planted foot, and nothing else
+    // needs a step. The body is left to turn however it turns; the feet follow it, so the leg's twist
+    // stays at the hip. If both feet are past it, the one turned further goes first (ties to the left);
+    // the other follows after the double-support pause.
+    bool IsMyTurnStep()
+    {
+        float mine = TurnAngle;
+        if (mine < turnStepAngle) return false;
+        float other = otherFoot.TurnAngle;
+        return mine > other || (mine == other && side < 0f);
     }
 
     // --- Landing ---------------------------------------------------------------------------------------
@@ -383,6 +417,9 @@ public class FootPlacement : MonoBehaviour
         }
 
         float travel = t * t * (3f - 2f * t);
+        // The foot turns to the body's facing with its travel, so it plants facing the way the body does
+        // (exactly, at travel 1) and holds that from then on. ghostHips is yaw-only.
+        facing = Quaternion.Slerp(liftoffFacing, ghostHips.rotation, travel);
         Vector3 point = Vector3.Lerp(liftoffPoint, landingPoint, travel);
         float arc = Mathf.Sin(t * Mathf.PI);
         point.y += Mathf.Sqrt(arc) * PeakLift() + arc * Mathf.Min(playerRig.HipSag, MaxSagLift);
@@ -433,6 +470,7 @@ public class FootPlacement : MonoBehaviour
     void BeginStep(Vector3 landing, Vector3 normal, bool chaseCapturePoint)
     {
         liftoffPoint = groundPoint;
+        liftoffFacing = facing;
         landingPoint = landing;
         groundNormal = normal;
         stepProgress = 0f;
@@ -441,16 +479,19 @@ public class FootPlacement : MonoBehaviour
         stepLift = Mathf.Max(0f, stepHeight + Random.Range(-StepHeightVariance, StepHeightVariance));
     }
 
-    // The knee points along cross(legDir, body right), mirrored forward
+    // The knee points along cross(legDir, foot right), mirrored forward
     // if it ever points backward so a deep tuck can't fold the knee the wrong way. Crossing against the
-    // body's right rather than world right is what keeps a toed-out foot from folding the knee inward.
+    // foot's right rather than world right is what keeps a toed-out foot from folding the knee inward.
+    //
+    // The foot's, not the body's: with the knee plane over the foot, a body turned over a planted foot
+    // twists the leg at the hip (±30°). Over the body, the twist landed on the ankle (±15°) and knee (±5°).
     void PoseKneeHint()
     {
         Vector3 hip = ghostThigh.position;
         Vector3 ankle = transform.position;
-        Vector3 forward = Forward;
+        Vector3 forward = FootForward;
 
-        Vector3 knee = Vector3.Cross((ankle - hip).normalized, ghostHips.right);
+        Vector3 knee = Vector3.Cross((ankle - hip).normalized, FootRight);
         knee = knee.sqrMagnitude > KneeDirEpsilonSqr ? knee.normalized : forward;
 
         float ahead = Vector3.Dot(knee, forward);
@@ -460,6 +501,12 @@ public class FootPlacement : MonoBehaviour
     }
 
     // --- Helpers ---------------------------------------------------------------------------------------
+
+    static Quaternion YawOf(Vector3 forward)
+    {
+        forward = forward.Flat();
+        return forward.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(forward) : Quaternion.identity;
+    }
 
     static Vector3 ClosestOnSegment(Vector3 p, Vector3 a, Vector3 b)
     {

@@ -134,7 +134,12 @@ public class CatchRecorder : MonoBehaviour
             "ankleTrim,lStepping,lGroundZ,lFx,lFy,lFz,rStepping,rGroundZ,rFx,rFy,rFz," +
             "hipSag,lTargetAnkleY,lGhostAnkleY,lAnkleY,lSoleY,rTargetAnkleY,rGhostAnkleY,rAnkleY,rSoleY," +
             "lGhostThighPitch,lThighPitch,lGhostKnee,lKnee,lGhostFootPitch,lFootPitch,lTrackErr,rTrackErr," +
-            "lAnkleZ,rAnkleZ,comY,pelvisY,lKneeFlex,rKneeFlex,lKneeOffAxis,rKneeOffAxis,lKneeGap,rKneeGap\n");
+            "lAnkleZ,rAnkleZ,comY,pelvisY,lKneeFlex,rKneeFlex,lKneeOffAxis,rKneeOffAxis,lKneeGap,rKneeGap," +
+            "pelvisYaw,lFootYaw,rFootYaw,lTargetYaw,rTargetYaw,ankleRoll,comX," +
+            "pelvisYawRate,torsoYawRate,lThighYawRate,lShinYawRate,lFootYawRate,rFootYawRate," +
+            "yawMomentum,trunkYawMomentum,lLegYawMomentum,rLegYawMomentum,uprightYawTorque," +
+            "lHipTwist,lHipTwistTarget,rHipTwist,rHipTwistTarget,lAnkleTwist,lAnkleTwistTarget," +
+            "rAnkleTwist,rAnkleTwistTarget,lGhostHipTwist,rGhostHipTwist\n");
     }
 
     void FixedUpdate()
@@ -173,7 +178,32 @@ public class CatchRecorder : MonoBehaviour
                // How far the knee has turned off its hinge (twist or sideways fold), degrees, and how far
                // the joint has pulled apart, millimetres.
                KneeOffAxis(thighL, shinL), KneeOffAxis(thighR, shinR),
-               JointGap(kneeL) * 1000f, JointGap(kneeR) * 1000f);
+               JointGap(kneeL) * 1000f, JointGap(kneeR) * 1000f,
+               // Heading in degrees, + turned right: the body, each physical foot, and each foot target.
+               Yaw(pelvis.rotation), Yaw(footL.rotation), Yaw(footR.rotation),
+               Yaw(leftFoot.transform.rotation), Yaw(rightFoot.transform.rotation),
+               // Ankle roll trim (+ lifts the right edge) and the sideways position it acts on.
+               SignedAngle(balance.AnkleTrim.eulerAngles.z), sensor.CenterOfMass.x,
+               // World yaw rates, degrees/s, + turning right: where a turn starts and how it travels.
+               YawRate(pelvis), YawRate(torso), YawRate(thighL), YawRate(shinL), YawRate(leftFootBody),
+               YawRate(rightFootBody),
+               // Yaw angular momentum about the centre of mass, kg·m²/s, + turning right: the whole body,
+               // then the trunk and each leg. Only an outside torque (the ground, the upright torque)
+               // changes the whole; a trunk turning while the whole holds is a reaction to a leg.
+               YawMomentum(sensor.CenterOfMass, pelvis, torso, thighL, shinL, footL, thighR, shinR, footR),
+               YawMomentum(sensor.CenterOfMass, pelvis, torso),
+               YawMomentum(sensor.CenterOfMass, thighL, shinL, footL),
+               YawMomentum(sensor.CenterOfMass, thighR, shinR, footR),
+               balance.UprightYawTorque,
+               // Twist about each joint's Y (the leg's long axis), degrees: where it is, and where the
+               // drive is pulling it.
+               Twist(JointRotation(hipL)), Twist(Quaternion.Inverse(hipL.targetRotation)),
+               Twist(JointRotation(hipR)), Twist(Quaternion.Inverse(hipR.targetRotation)),
+               Twist(JointRotation(ankleL)), Twist(Quaternion.Inverse(ankleL.targetRotation)),
+               Twist(JointRotation(ankleR)), Twist(Quaternion.Inverse(ankleR.targetRotation)),
+               // The same twist on the ghost, thigh against ghost hips: what the IK solved.
+               Twist(Quaternion.Inverse(rig.GhostHips.rotation) * ghostThighL.rotation),
+               Twist(Quaternion.Inverse(rig.GhostHips.rotation) * ghostThighR.rotation));
 
         if (Time.time - startTime >= duration)
             Write();
@@ -212,6 +242,40 @@ public class CatchRecorder : MonoBehaviour
     // Forward pitch in degrees: + leans forward.
     static float Pitch(Rigidbody body) => Pitch(body.rotation);
     static float Pitch(Quaternion rotation) => SignedAngle(rotation.eulerAngles.x);
+    static float Yaw(Quaternion rotation)
+    {
+        Vector3 forward = rotation * Vector3.forward;
+        return Mathf.Atan2(forward.x, forward.z) * Mathf.Rad2Deg;
+    }
+    // A joint's body relative to its connected body: what the drive's target is compared against.
+    static Quaternion JointRotation(ConfigurableJoint joint) =>
+        Quaternion.Inverse(joint.connectedBody.rotation) * joint.GetComponent<Rigidbody>().rotation;
+
+    static float Twist(Quaternion q)
+    {
+        if (q.w < 0f) q = new Quaternion(-q.x, -q.y, -q.z, -q.w);
+        return 2f * Mathf.Atan2(q.y, q.w) * Mathf.Rad2Deg;
+    }
+
+    // Orbital (m · r × v) plus spin (I ω) about the vertical through `about`.
+    static float YawMomentum(Vector3 about, params Component[] bodies)
+    {
+        float total = 0f;
+        foreach (Component c in bodies)
+        {
+            Rigidbody body = c.GetComponent<Rigidbody>();
+            Vector3 r = body.worldCenterOfMass - about;
+            total += body.mass * Vector3.Cross(r, body.linearVelocity).y;
+
+            Quaternion axes = body.rotation * body.inertiaTensorRotation;
+            Vector3 local = Quaternion.Inverse(axes) * body.angularVelocity;
+            total += (axes * Vector3.Scale(body.inertiaTensor, local)).y;
+        }
+        return total;
+    }
+
+    static float YawRate(Rigidbody body) => body.angularVelocity.y * Mathf.Rad2Deg;
+    static float YawRate(Transform body) => YawRate(body.GetComponent<Rigidbody>());
     static float PitchRate(Rigidbody body) => body.angularVelocity.x * Mathf.Rad2Deg;
     static float SignedAngle(float degrees) => Mathf.DeltaAngle(0f, degrees);
 

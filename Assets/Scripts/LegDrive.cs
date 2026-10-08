@@ -171,9 +171,15 @@ public class LegDrive : MonoBehaviour
         SetStiffness(knee, kneeDrive, ref kneeStiffness, landing);
         SetStiffness(ankle, ankleDrive, ref ankleStiffness, swinging ? 1f : stanceAnkleStiffness);
 
+        // The ghost thigh without its twist about its own axis; see the hip write below. Taken against the
+        // ghost hips so it stays continuous when the leg goes from planted to swinging.
+        Transform ghostHips = ghostThigh.parent;
+        Quaternion ghostThighNoTwist =
+            ghostHips.rotation * WithoutTwist(Quaternion.Inverse(ghostHips.rotation) * ghostThigh.rotation);
+
         // A planted leg gets no feed-forward: its damper resisting motion is what steadies the stance.
         float feedForward = swinging ? swingFeedForward : 0f;
-        hip.targetAngularVelocity = TargetVelocity(hip, ghostThigh.rotation, ref prevGhostThigh, feedForward, false);
+        hip.targetAngularVelocity = TargetVelocity(hip, ghostThighNoTwist, ref prevGhostThigh, feedForward, false);
         knee.targetAngularVelocity = TargetVelocity(knee, ghostShin.rotation, ref prevGhostShin, feedForward, true);
         ankle.targetAngularVelocity = TargetVelocity(ankle, ghostFoot.rotation, ref prevGhostFoot, feedForward, true);
 
@@ -190,11 +196,19 @@ public class LegDrive : MonoBehaviour
         // thigh). Against the real thigh, a thigh still stretched back behind the ghost's made the ghost
         // shin read as barely bent, so the knee stayed straight for the first 0.15 s of the swing and
         // the foot scraped. The swing's clearance comes from the knee bending on time.
-        Transform hipFrame = swinging ? hip.connectedBody.transform : ghostThigh.parent;
+        Transform hipFrame = swinging ? hip.connectedBody.transform : ghostHips;
         Transform kneeFrame = swinging ? ghostThigh : knee.connectedBody.transform;
         Transform ankleFrame = swinging ? ankle.connectedBody.transform : ghostShin;
 
-        hip.SetTargetWorldRotation(ghostThigh.rotation, thighStart, hipFrame);
+        // The hip takes the thigh's direction from the ghost but no twist about the thigh's own axis: the
+        // thigh is held at neutral twist against the pelvis. The ghost's thigh twist isn't designed by
+        // anything. TwoBoneIK solves each tick from last tick's pose, so it's whatever the swing path and
+        // the hint alignment left there: measured 0 → 35° on a stance leg through single support, and 72°
+        // at a liftoff, against a ±30° hip. The drive shoved the thigh into its limit and the reaction spun
+        // the pelvis (−183 °/s on a 1 m/s sideways catch). With the planted ankle also twist-free, the leg
+        // is a plain twist spring between pelvis and foot.
+        Quaternion hipLocal = WithoutTwist(Quaternion.Inverse(hipFrame.rotation) * ghostThigh.rotation);
+        hip.SetTargetWorldRotation(hipFrame.rotation * hipLocal, thighStart, hipFrame);
 
         knee.SetTargetWorldRotation(KneeTarget(kneeFrame.rotation), shinStart, kneeFrame);
 
@@ -210,7 +224,30 @@ public class LegDrive : MonoBehaviour
         Quaternion footPitch = swinging
             ? Quaternion.Euler(-SwingToeLift * Mathf.Sin(Mathf.PI * footPlacement.SwingProgress), 0f, 0f)
             : balanceController.AnkleTrim;
-        ankle.SetTargetWorldRotation(ghostFoot.rotation * footPitch, footStart, ankleFrame);
+        Quaternion footTarget = ghostFoot.rotation * footPitch;
+
+        // A planted ankle takes pitch and roll from the ghost shin, but no twist about the shin's axis.
+        // The ghost shin's yaw is the pelvis's (TwoBoneIK never twists the thigh), and the planted foot
+        // keeps its own facing, so a body turned over its feet put all the turn into the ghost's ankle
+        // twist. Asked of the real ankle, with its foot held by the ground, that twisted the leg after
+        // the pelvis and pushed the whole body further the way it was turning: a yaw drift that grew
+        // ~2 °/s → 10 °/s in 2.6 s, until the ±15° twist limit stopped it.
+        if (!swinging)
+        {
+            Quaternion local = WithoutTwist(Quaternion.Inverse(ghostShin.rotation) * footTarget);
+            footTarget = ghostShin.rotation * local;
+        }
+        ankle.SetTargetWorldRotation(footTarget, footStart, ankleFrame);
+    }
+
+    // q with its twist about local Y (a leg bone's long axis) taken out: the swing that's left.
+    static Quaternion WithoutTwist(Quaternion q)
+    {
+        Quaternion twist = new Quaternion(0f, q.y, 0f, q.w);
+        float length = Mathf.Sqrt(twist.y * twist.y + twist.w * twist.w);
+        if (length < 1e-6f) return q;
+        twist = new Quaternion(0f, twist.y / length, 0f, twist.w / length);
+        return q * Quaternion.Inverse(twist);
     }
 
     // The ghost shin's world rotation, unless that would bend the knee less than MinKneeFlexion against

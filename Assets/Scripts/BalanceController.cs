@@ -21,6 +21,11 @@ public class BalanceController : MonoBehaviour
     // soles, and the most it may pitch either way.
     [SerializeField] float ankleTrimGain = 50f;
     [SerializeField] float maxAnkleTrim = 12f;
+    // The same sideways: degrees of ankle roll per metre the capture point sits right (+) or left (−)
+    // of the planted soles. Smaller cap than pitch: the ankle rolls ±15°, and the sole is narrower than
+    // it is long, so there is less of it to roll the centre of pressure across.
+    [SerializeField] float rollTrimGain = 50f;
+    [SerializeField] float maxRollTrim = 8f;
 
     [Header("Pelvis Upright Torque")]
     // Real N·m per radian and N·m·s per radian, applied with ForceMode.Force. Gravity tips the upper
@@ -37,12 +42,19 @@ public class BalanceController : MonoBehaviour
     // keep the body from folding over its stepping legs. The same strength sideways, standing on one leg,
     // tipped the whole body over its stance foot and threw it sideways.
     [SerializeField] float maxRollTorque = 150f;
+    // Damps the pelvis's yaw rate, N·m·s per radian: no spring, so it holds no heading, it only slows a
+    // turn. A swing leg's reaction spins the pelvis (−90 °/s in 0.2 s on a 2 m/s catch without this).
+    // Kept small on purpose: about yaw the damper sees the pelvis alone, ~0.1 kg·m², and above ~20 it
+    // overshoots each 0.01 s tick and buzzes. See HoldPelvisUpright.
+    [SerializeField] float uprightYawDamper = 10f;
 
     public float StandingHipHeight => standingHipHeight;
 
     // Published rather than applied, so that LegDrive stays the only thing writing an ankle joint.
     // It composes into the foot rotation there.
     public Quaternion AnkleTrim { get; private set; } = Quaternion.identity;
+    // The yaw part of last tick's upright torque, N·m, for diagnostics.
+    public float UprightYawTorque { get; private set; }
 
     void FixedUpdate()
     {
@@ -50,10 +62,18 @@ public class BalanceController : MonoBehaviour
         // moved. FootPlacement runs later in the tick, so this is last tick's stance, which is fine
         // for a trim.
         Vector3 forward = (pelvis.rotation * Vector3.forward).Flat().normalized;
-        float error = Vector3.Dot(balanceSensor.CapturePoint - StanceCentre(), forward);
+        Vector3 right = (pelvis.rotation * Vector3.right).Flat().normalized;
+        Vector3 error = balanceSensor.CapturePoint - StanceCentre();
 
-        float pitch = Mathf.Clamp(ankleTrimGain * error, -maxAnkleTrim, maxAnkleTrim);
-        AnkleTrim = Quaternion.Euler(pitch, 0f, 0f);
+        // Pitch: toes down (+X) presses the front of the sole and pushes a forward capture point back.
+        // Roll: the same on the other axis. +Z lifts the foot's right edge, so a capture point off to the
+        // right wants −Z: the right edge pressed down, pushing the body back left.
+        //
+        // Measured in the pelvis's frame and applied about each foot's own axes. Planted feet keep their
+        // own facing, up to turnStepAngle off the body's, so the two frames can disagree by that much.
+        float pitch = Mathf.Clamp(ankleTrimGain * Vector3.Dot(error, forward), -maxAnkleTrim, maxAnkleTrim);
+        float roll = Mathf.Clamp(-rollTrimGain * Vector3.Dot(error, right), -maxRollTrim, maxRollTrim);
+        AnkleTrim = Quaternion.Euler(pitch, 0f, roll);
 
         HoldPelvisUpright();
     }
@@ -75,17 +95,24 @@ public class BalanceController : MonoBehaviour
     // then the character has already fallen, so that's fine for now.
     //
     // Pitch (about the body's right) and roll (about its forward) are capped separately; see
-    // maxRollTorque. The damper's yaw part rides along with the roll cap.
+    // maxRollTorque.
+    //
+    // The tilt damper doesn't act on yaw. Its 120 is sized for the upper body tipping (~4 kg·m²);
+    // about yaw it met the pelvis alone (~0.1 kg·m²), overshot every tick and flipped the pelvis's yaw
+    // rate ±80°/s at 50 Hz, held to that only by the torque cap. Yaw gets its own, much smaller damper.
     void HoldPelvisUpright()
     {
         Vector3 tiltAxis = Vector3.Cross(pelvis.rotation * Vector3.up, Vector3.up);
-        Vector3 torque = tiltAxis * uprightSpring - pelvis.angularVelocity * uprightDamper;
+        Vector3 yawRate = Vector3.Project(pelvis.angularVelocity, Vector3.up);
+        Vector3 tiltRate = pelvis.angularVelocity - yawRate;
+        Vector3 torque = tiltAxis * uprightSpring - tiltRate * uprightDamper - yawRate * uprightYawDamper;
 
         Vector3 right = (pelvis.rotation * Vector3.right).Flat().normalized;
         Vector3 pitch = Vector3.Project(torque, right);
         Vector3 rest = torque - pitch;
 
-        pelvis.AddTorque(Vector3.ClampMagnitude(pitch, maxUprightTorque)
-                         + Vector3.ClampMagnitude(rest, maxRollTorque), ForceMode.Force);
+        Vector3 applied = Vector3.ClampMagnitude(pitch, maxUprightTorque) + Vector3.ClampMagnitude(rest, maxRollTorque);
+        pelvis.AddTorque(applied, ForceMode.Force);
+        UprightYawTorque = applied.y;
     }
 }
