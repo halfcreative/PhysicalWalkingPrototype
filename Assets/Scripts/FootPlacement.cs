@@ -74,10 +74,16 @@ public class FootPlacement : MonoBehaviour
     // Preference margin for distance to capture point and planting recency when selecting which foot steps.
     const float TurnDistanceMargin = 0.02f;
     const float TurnTimeMargin = 0.01f;
+    // How far past a foot's outer side the capture point must be before only that foot may step.
+    const float OutsideMargin = 0.03f;
+    // Sole-to-sole width, across the body, past which the far foot closes in (the gather step).
+    const float GatherStanceWidth = 0.45f;
 
     [Header("Rig")]
     [SerializeField] PlayerRig playerRig;
     [SerializeField] BalanceSensor balanceSensor;
+    // Owns the heading: feet plant facing it, and turn steps measure against it.
+    [SerializeField] PlayerController playerController;
     [SerializeField] FootPlacement otherFoot;
     // This leg's IK root. Reach is measured from here because it's the hip the solver actually uses.
     [SerializeField] Transform ghostThigh;
@@ -93,7 +99,7 @@ public class FootPlacement : MonoBehaviour
     // The duty factor is a walking relation and asks for long swings at recovery speeds. Lower this
     // first if a catch step arrives too late.
     [SerializeField] float maxSwingDuration = 0.7f;
-    // How far, in degrees, the body may turn away from a planted foot before that foot steps to follow
+    // How far, in degrees, the heading may turn away from a planted foot before that foot steps to follow
     // it. The hip twists ±30°; past that the twist lands on the knee (±5°).
     [SerializeField, Range(5f, 30f)] float turnStepAngle = 25f;
 
@@ -129,8 +135,9 @@ public class FootPlacement : MonoBehaviour
     // The sole's centre on the ground: where this foot bears weight, for balance.
     public Vector3 SupportPoint => groundPoint + FootForward * SoleCentreForward;
     public float LastLandTime { get; private set; }
-    // Degrees between this foot's facing and the body's. Both are yaw-only.
-    public float TurnAngle => Quaternion.Angle(facing, ghostHips.rotation);
+    // Degrees between this foot's facing and the heading. Both are yaw-only. Measured against the heading,
+    // not the hips: the hips square to a split stance and overshoot through a catch, and neither is a turn.
+    public float TurnAngle => Quaternion.Angle(facing, playerController.Heading);
 
     Vector3 Forward => ghostHips.forward;
     Vector3 FootForward => facing * Vector3.forward;
@@ -218,7 +225,7 @@ public class FootPlacement : MonoBehaviour
             Vector3 heading = capture - ClosestOnSegment(capture, mySole, otherSole);
             if (!IsMyTurn(heading, capture, mySole, otherSole)) return;
         }
-        else if (!IsMyTurnStep()) return;
+        else if (!IsMyTurnStep() && !IsMyGatherStep(com, mySole, otherSole)) return;
 
         // A turn step lands where a catch step would: on the capture point, out by this hip's half-width
         // along the body's NEW right, so the foot ends up under its hip in the new heading.
@@ -245,9 +252,23 @@ public class FootPlacement : MonoBehaviour
     // would have to cross over. Otherwise the trailing foot steps: the one further from the capture
     // point, with a 2 cm margin and tie-breaks (the older plant, then the left foot) so
     // exactly one foot is ever the candidate and a parallel stance alternates rather than repeats.
+    //
+    // Ahead of all that: a capture point out past one foot's outer side can only be reached by that foot.
+    // The other would have to cross over, and ClampStanceWidth won't let it, so it lands short and steps
+    // again. Falling forward-left over a planted left foot read as mostly forward, so the trailing right
+    // foot stepped four times, pinned beside the left, while the body fell past both (drunk 0.5, seed 1,
+    // 2026-10-15). Only for the older plant, though: drifting forward-left, the capture point sat just
+    // outside the left foot step after step, the left foot stepped twice running, the right was left
+    // 0.5 m behind and the body sank into the split (seed 6). So the feet still alternate, and the
+    // outside foot only overrides the trailing-foot choice when it's due anyway.
     bool IsMyTurn(Vector3 error, Vector3 capture, Vector3 mySole, Vector3 otherSole)
     {
-        float lateral = Vector3.Dot(error, ghostHips.right);
+        Vector3 right = ghostHips.right;
+        bool olderPlant = LastLandTime <= otherFoot.LastLandTime;
+        if (olderPlant && side * Vector3.Dot(capture - mySole, right) > OutsideMargin) return true;
+        if (!olderPlant && -side * Vector3.Dot(capture - otherSole, right) > OutsideMargin) return false;
+
+        float lateral = Vector3.Dot(error, right);
         float forward = Vector3.Dot(error, Forward);
 
         if (Mathf.Abs(lateral) > Mathf.Abs(forward))
@@ -275,6 +296,18 @@ public class FootPlacement : MonoBehaviour
         return mine > other || (mine == other && side < 0f);
     }
 
+    // The gather step: nothing is falling, but the feet are spread too wide across the body. A sideways
+    // catch steps the outer foot out and nothing brought the other in, so a steady sideways lurch stepped
+    // the same foot out again and again until the legs were 1.2 m apart and the body rolled over (drunk
+    // 0.5, seed 4, 2026-10-15). The foot further from the centre of mass closes in, which makes a steady
+    // sideways push a sidestep: out, close, out.
+    bool IsMyGatherStep(Vector3 com, Vector3 mySole, Vector3 otherSole)
+    {
+        float width = Mathf.Abs(Vector3.Dot(mySole - otherSole, ghostHips.right));
+        if (width < GatherStanceWidth) return false;
+        return (com - mySole).sqrMagnitude > (com - otherSole).sqrMagnitude;
+    }
+
     // --- Landing ---------------------------------------------------------------------------------------
 
     // Where a foot lifting off from `liftoff` should land to catch the body, `timeToLand` seconds from
@@ -290,9 +323,15 @@ public class FootPlacement : MonoBehaviour
     {
         Vector3 drift = BodyVelocity * timeToLand;
 
-        // Put the sole centre on the capture point, offset out to this leg's side of it.
+        // Put the sole centre on the capture point, offset out to this leg's side of it. Short of it by
+        // captureGain only along the body's forward: landing short is what keeps a walk going, but across
+        // the body it only under-catches. Shortened sideways too, a steady sideways lurch landed every
+        // sidestep ~0.1 m inside the capture point and the body rolled over its outer foot (drunk 0.5,
+        // seed 5, 2026-10-15).
         Vector3 liftoffSole = (liftoff + Forward * SoleCentreForward).Flat();
-        Vector3 sole = liftoffSole + (capture + drift - liftoffSole) * captureGain
+        Vector3 toCapture = capture + drift - liftoffSole;
+        Vector3 along = Vector3.Project(toCapture, Forward);
+        Vector3 sole = liftoffSole + along * captureGain + (toCapture - along)
                      + ghostHips.right * (side * hipHalfWidth);
         Vector3 landing = sole - Forward * SoleCentreForward;
         landing.y = liftoff.y;
@@ -417,9 +456,10 @@ public class FootPlacement : MonoBehaviour
         }
 
         float travel = t * t * (3f - 2f * t);
-        // The foot turns to the body's facing with its travel, so it plants facing the way the body does
-        // (exactly, at travel 1) and holds that from then on. ghostHips is yaw-only.
-        facing = Quaternion.Slerp(liftoffFacing, ghostHips.rotation, travel);
+        // The foot turns to the heading with its travel, so it plants facing where the player aims (exactly,
+        // at travel 1) and holds that from then on. Not the hips: they square to a split stance, and a foot
+        // copying them fed that turn into the next stance, growing each step at speed (2026-10-15).
+        facing = Quaternion.Slerp(liftoffFacing, playerController.Heading, travel);
         Vector3 point = Vector3.Lerp(liftoffPoint, landingPoint, travel);
         float arc = Mathf.Sin(t * Mathf.PI);
         point.y += Mathf.Sqrt(arc) * PeakLift() + arc * Mathf.Min(playerRig.HipSag, MaxSagLift);

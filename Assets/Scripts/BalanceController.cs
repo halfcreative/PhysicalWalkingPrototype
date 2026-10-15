@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 // The two balance strategies that don't take a step: the ankle trim, which leans the body on its feet
 // for small capture-point errors, and the pelvis upright torque, which keeps the upper body stacked
@@ -11,6 +12,7 @@ public class BalanceController : MonoBehaviour
     [SerializeField] Rigidbody pelvis;
     [SerializeField] FootPlacement leftFoot;
     [SerializeField] FootPlacement rightFoot;
+    [SerializeField] PlayerController playerController;
 
     [Header("Stance")]
     // Where PlayerRig puts the ghost hips, measured up from the support plane.
@@ -27,6 +29,15 @@ public class BalanceController : MonoBehaviour
     [SerializeField] float rollTrimGain = 50f;
     [SerializeField] float maxRollTrim = 8f;
 
+    [Header("Lean")]
+    // Metres the resultant (sway + input, PlayerController) moves where the body holds its balance, per
+    // unit of resultant. The ankle trim and PlayerRig's hip shift then lean the body INTO the sway and
+    // toward where the player is going, rather than holding it upright against both, and the steps,
+    // which read the real centre of mass, catch it. Without this the ankles cancelled any push they
+    // could hold: at drunk 0.5 the body only leaned 3° and never stepped (2026-10-15), and a sideways
+    // input at maxSideSpeed 0.6 never moved it at all.
+    [SerializeField, FormerlySerializedAs("swayLeanDistance")] float leanDistance = 0.1f;
+
     [Header("Pelvis Upright Torque")]
     // Real N·m per radian and N·m·s per radian, applied with ForceMode.Force. Gravity tips the upper
     // body over the hips at ~103 N·m/rad, and the hip drives don't resist that, so the spring must
@@ -42,11 +53,14 @@ public class BalanceController : MonoBehaviour
     // keep the body from folding over its stepping legs. The same strength sideways, standing on one leg,
     // tipped the whole body over its stance foot and threw it sideways.
     [SerializeField] float maxRollTorque = 150f;
-    // Damps the pelvis's yaw rate, N·m·s per radian: no spring, so it holds no heading, it only slows a
-    // turn. A swing leg's reaction spins the pelvis (−90 °/s in 0.2 s on a 2 m/s catch without this).
+    // Damps the pelvis's yaw rate, N·m·s per radian; the heading is uprightYawSpring's. A swing leg's reaction spins the pelvis (−90 °/s in 0.2 s on a 2 m/s catch without this).
     // Kept small on purpose: about yaw the damper sees the pelvis alone, ~0.1 kg·m², and above ~20 it
     // overshoots each 0.01 s tick and buzzes. See HoldPelvisUpright.
     [SerializeField] float uprightYawDamper = 10f;
+    // Turns the pelvis toward the heading, N·m per radian: the body trails the aim on this spring against
+    // the yaw damper. It also pulls against the hips squaring to a split stance, so it's kept soft: 100
+    // holds ~35 N·m against a 20° squaring. If the turn overshoots, lower this, not raise the damper.
+    [SerializeField] float uprightYawSpring = 100f;
 
     public float StandingHipHeight => standingHipHeight;
 
@@ -63,7 +77,7 @@ public class BalanceController : MonoBehaviour
         // for a trim.
         Vector3 forward = (pelvis.rotation * Vector3.forward).Flat().normalized;
         Vector3 right = (pelvis.rotation * Vector3.right).Flat().normalized;
-        Vector3 error = balanceSensor.CapturePoint - StanceCentre();
+        Vector3 error = balanceSensor.CapturePoint - BalanceTarget();
 
         // Pitch: toes down (+X) presses the front of the sole and pushes a forward capture point back.
         // Roll: the same on the other axis. +Z lifts the foot's right edge, so a capture point off to the
@@ -86,6 +100,9 @@ public class BalanceController : MonoBehaviour
         return (leftFoot.SupportPoint + rightFoot.SupportPoint) * 0.5f;
     }
 
+    // Where the body tries to hold its capture point: over the stance, leaned by the resultant.
+    public Vector3 BalanceTarget() => StanceCentre() + playerController.ResultantWorld * leanDistance;
+
     // A PD torque that tips the pelvis back toward vertical. AddTorque is legitimate here and nowhere
     // else in this system: the pelvis is the root body, with no joint above it to absorb the torque.
     // Anything behind a joint goes through targetRotation.
@@ -105,7 +122,10 @@ public class BalanceController : MonoBehaviour
         Vector3 tiltAxis = Vector3.Cross(pelvis.rotation * Vector3.up, Vector3.up);
         Vector3 yawRate = Vector3.Project(pelvis.angularVelocity, Vector3.up);
         Vector3 tiltRate = pelvis.angularVelocity - yawRate;
-        Vector3 torque = tiltAxis * uprightSpring - tiltRate * uprightDamper - yawRate * uprightYawDamper;
+        Vector3 pelvisForward = (pelvis.rotation * Vector3.forward).Flat();
+        float yawError = Vector3.SignedAngle(pelvisForward, playerController.Heading * Vector3.forward, Vector3.up);
+        Vector3 torque = tiltAxis * uprightSpring - tiltRate * uprightDamper
+                       + Vector3.up * (yawError * Mathf.Deg2Rad * uprightYawSpring) - yawRate * uprightYawDamper;
 
         Vector3 right = (pelvis.rotation * Vector3.right).Flat().normalized;
         Vector3 pitch = Vector3.Project(torque, right);

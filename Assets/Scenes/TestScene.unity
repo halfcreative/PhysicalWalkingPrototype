@@ -909,6 +909,7 @@ GameObject:
   - component: {fileID: 330585545}
   - component: {fileID: 330585544}
   - component: {fileID: 330585547}
+  - component: {fileID: 330585548}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -1034,6 +1035,22 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
+--- !u!114 &330585548
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330585543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 96e72aada74cf07adbc3851eb234decb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FollowCamera
+  player: {fileID: 1807426360}
+  balanceSensor: {fileID: 1807426353}
+  distance: 4
+  height: 1.5
 --- !u!1 &401535634
 GameObject:
   m_ObjectHideFlags: 0
@@ -1093,13 +1110,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FootPlacement
   playerRig: {fileID: 1807426356}
   balanceSensor: {fileID: 1807426353}
+  playerController: {fileID: 1807426360}
   otherFoot: {fileID: 1443963552}
   ghostThigh: {fileID: 521958079}
   kneeHint: {fileID: 1006297221}
-  captureGain: 1
+  captureGain: 0.8
   stepTriggerDistance: 0.08
   stepHeight: 0.1
   maxSwingDuration: 0.4
+  turnStepAngle: 25
   autoStep: 1
   logSteps: 0
 --- !u!1 &410087039
@@ -3054,13 +3073,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FootPlacement
   playerRig: {fileID: 1807426356}
   balanceSensor: {fileID: 1807426353}
+  playerController: {fileID: 1807426360}
   otherFoot: {fileID: 401535637}
   ghostThigh: {fileID: 12589339}
   kneeHint: {fileID: 1695630307}
-  captureGain: 1
+  captureGain: 0.8
   stepTriggerDistance: 0.08
   stepHeight: 0.1
   maxSwingDuration: 0.4
+  turnStepAngle: 25
   autoStep: 1
   logSteps: 0
 --- !u!1 &1453067851
@@ -3171,7 +3192,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -0, y: 0, z: 0}
-  m_LocalScale: {x: 2, y: 2, z: 2}
+  m_LocalScale: {x: 10, y: 10, z: 10}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}
@@ -3581,11 +3602,11 @@ GameObject:
   - component: {fileID: 1807426352}
   - component: {fileID: 1807426353}
   - component: {fileID: 1807426354}
-  - component: {fileID: 1807426355}
   - component: {fileID: 1807426356}
   - component: {fileID: 1807426358}
   - component: {fileID: 1807426357}
   - component: {fileID: 1807426359}
+  - component: {fileID: 1807426360}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -3645,25 +3666,19 @@ MonoBehaviour:
   pelvis: {fileID: 735725823}
   leftFoot: {fileID: 1443963552}
   rightFoot: {fileID: 401535637}
+  playerController: {fileID: 1807426360}
   standingHipHeight: 0.85
   ankleTrimGain: 50
   maxAnkleTrim: 12
+  rollTrimGain: 50
+  maxRollTrim: 8
+  leanDistance: 0.1
   uprightSpring: 1000
   uprightDamper: 120
   maxUprightTorque: 400
---- !u!114 &1807426355
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1807426351}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2dbb15bf4001c48729443a7efefd37e9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PushTester
-  pushSpeed: 2
+  maxRollTorque: 150
+  uprightYawDamper: 10
+  uprightYawSpring: 100
 --- !u!114 &1807426356
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3761,6 +3776,29 @@ MonoBehaviour:
   leftFoot: {fileID: 1443963552}
   rightFoot: {fileID: 401535637}
   stepDistance: 0.2
+--- !u!114 &1807426360
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1807426351}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9e335757925008ca09f7b1c83a1893a5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerController
+  balanceSensor: {fileID: 1807426353}
+  drunkAmount: 1
+  swayMagnitude: 1.5
+  swayRotationRate: 90
+  swayResponseSpeed: 3
+  walkDrive: 1
+  maxSpeed: 2.5
+  maxSideSpeed: 0.6
+  momentumTime: 0.8
+  steerResponse: 12
+  mouseSensitivity: 0.1
 --- !u!1 &2083852862
 GameObject:
   m_ObjectHideFlags: 0

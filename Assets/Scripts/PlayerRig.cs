@@ -95,10 +95,11 @@ public class PlayerRig : MonoBehaviour
     // the body's actual pose would give them zero error and no reason to produce torque.
     //
     // Horizontally they sit off the body by the capture point's error from the middle of the planted
-    // feet, times hipsOverStance. The planted legs then push the body back over its base of support,
-    // which is the ankle/hip balance strategy done through the legs: internal torques, bounded by what
-    // the feet can push against, so a big enough shove still needs a step. At 0 nothing holds the body
-    // over its feet, and it balances like a pencil on its end.
+    // feet, leaned by the sway and input (BalanceController.BalanceTarget), times hipsOverStance. The
+    // planted legs then push the body back over its base of support, which is the ankle/hip balance
+    // strategy done through the legs: internal torques, bounded by what the feet can push against, so a
+    // big enough shove still needs a step. At 0 nothing holds the body over its feet, and it balances
+    // like a pencil on its end.
     //
     // The capture point, not the hips: it carries the body's velocity, which damps the push. Pulling
     // the hips themselves over the feet was a spring with no damper: the body settled for a second,
@@ -112,7 +113,7 @@ public class PlayerRig : MonoBehaviour
     {
         Vector3 hip = HipCentre();
         Vector3 stance = balanceController.StanceCentre();
-        Vector3 error = (stance - balanceSensor.CapturePoint).Flat();
+        Vector3 error = (balanceController.BalanceTarget() - balanceSensor.CapturePoint).Flat();
         Vector3 over = hip + Vector3.ClampMagnitude(error * hipsOverStance, MaxHipShift);
 
         // Height from where the planted feet are ON THE GROUND, not from the physical ankles. In a
