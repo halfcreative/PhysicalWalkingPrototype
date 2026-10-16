@@ -20,6 +20,7 @@ public class CatchRecorder : MonoBehaviour
     FootPlacement leftFoot, rightFoot;
     Rigidbody pelvis, torso, leftFootBody, rightFootBody;
     PlayerRig rig;
+    PlayerController controller;
     Transform ghostFootL, ghostFootR, ghostThighL, ghostShinL, thighL, shinL, footL;
     Transform ghostThighR, ghostShinR, thighR, shinR, footR;
     ConfigurableJoint hipL, hipR, kneeL, kneeR, ankleL, ankleR;
@@ -57,6 +58,7 @@ public class CatchRecorder : MonoBehaviour
         ReportContacts(rightFootBody);
 
         rig = GetComponent<PlayerRig>();
+        controller = GetComponent<PlayerController>();
         foreach (Transform t in GetComponentsInChildren<Transform>(true))
         {
             switch (t.name)
@@ -124,8 +126,10 @@ public class CatchRecorder : MonoBehaviour
         }
     }
 
-    public void Record(string recordingLabel)
+    // seconds > 0 overrides the serialized duration.
+    public void Record(string recordingLabel, float seconds = 0f)
     {
+        if (seconds > 0f) duration = seconds;
         label = recordingLabel;
         startTime = Time.time;
         leftImpulse = rightImpulse = Vector3.zero;
@@ -139,7 +143,9 @@ public class CatchRecorder : MonoBehaviour
             "pelvisYawRate,torsoYawRate,lThighYawRate,lShinYawRate,lFootYawRate,rFootYawRate," +
             "yawMomentum,trunkYawMomentum,lLegYawMomentum,rLegYawMomentum,uprightYawTorque," +
             "lHipTwist,lHipTwistTarget,rHipTwist,rHipTwistTarget,lAnkleTwist,lAnkleTwistTarget," +
-            "rAnkleTwist,rAnkleTwistTarget,lGhostHipTwist,rGhostHipTwist\n");
+            "rAnkleTwist,rAnkleTwistTarget,lGhostHipTwist,rGhostHipTwist," +
+            "lGroundX,rGroundX,swayX,swayZ,pelvisRoll,momentumX,momentumY,fallLimit,breach,fallen,pelvisTilt," +
+            "momentumCharge,tiltCharge,dropCharge,torsoRoll,lCrossing,rCrossing\n");
     }
 
     void FixedUpdate()
@@ -203,7 +209,23 @@ public class CatchRecorder : MonoBehaviour
                Twist(JointRotation(ankleR)), Twist(Quaternion.Inverse(ankleR.targetRotation)),
                // The same twist on the ghost, thigh against ghost hips: what the IK solved.
                Twist(Quaternion.Inverse(rig.GhostHips.rotation) * ghostThighL.rotation),
-               Twist(Quaternion.Inverse(rig.GhostHips.rotation) * ghostThighR.rotation));
+               Twist(Quaternion.Inverse(rig.GhostHips.rotation) * ghostThighR.rotation),
+               // The feet sideways, against comX / captureX, and the drunk sway (world, heading-scaled).
+               leftFoot.GroundPoint.x, rightFoot.GroundPoint.x,
+               controller.SwayWorld.x, controller.SwayWorld.z,
+               // Pelvis tilt to the side, degrees, + leaning toward world +X.
+               Roll(pelvis),
+               // The breach fall: momentum (heading frame, resultant units), the ring, the breach 0–1.
+               controller.Momentum.x, controller.Momentum.y, controller.FallLimit, controller.BreachFraction,
+               controller.IsFallen ? 1 : 0,
+               // The pelvis's whole tilt from upright, degrees: what PlayerController's fallTilt reads.
+               Vector3.Angle(pelvis.rotation * Vector3.up, Vector3.up),
+               // What each breach source is charging, breach per second.
+               controller.MomentumCharge, controller.TiltCharge, controller.DropCharge,
+               // The chest's tilt to the side, degrees, + toward world +X, against pelvisRoll.
+               Roll(torso),
+               // Whether each foot's step is a crossover.
+               leftFoot.IsCrossing ? 1 : 0, rightFoot.IsCrossing ? 1 : 0);
 
         if (Time.time - startTime >= duration)
             Write();
@@ -241,6 +263,7 @@ public class CatchRecorder : MonoBehaviour
 
     // Forward pitch in degrees: + leans forward.
     static float Pitch(Rigidbody body) => Pitch(body.rotation);
+    static float Roll(Rigidbody body) => Mathf.Asin(Mathf.Clamp((body.rotation * Vector3.up).x, -1f, 1f)) * Mathf.Rad2Deg;
     static float Pitch(Quaternion rotation) => SignedAngle(rotation.eulerAngles.x);
     static float Yaw(Quaternion rotation)
     {
