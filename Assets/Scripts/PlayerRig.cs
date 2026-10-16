@@ -120,9 +120,11 @@ public class PlayerRig : MonoBehaviour
         // stumble both feet leave the ground for a moment; measured off the ankles, the ghost hips rose
         // with them, the planted leg's target went out of reach, and its foot hovered while the body ran
         // over it.
+        // Tilted by the lean as well as yawed, so the stance legs hold the pelvis at the angle the upright
+        // torque aims for (BalanceController.PelvisUpTarget) rather than fighting it back to level.
         ghostHips.SetPositionAndRotation(
             new Vector3(over.x, stance.y + balanceController.StandingHipHeight, over.z),
-            PelvisYaw());
+            Quaternion.FromToRotation(Vector3.up, balanceController.PelvisUpTarget) * PelvisYaw());
 
         HipSag = Mathf.Max(0f, ghostHips.position.y - hip.y);
         GhostHipOffset = new Vector3(over.x - hip.x, 0f, over.z - hip.z);

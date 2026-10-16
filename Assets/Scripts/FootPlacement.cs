@@ -102,6 +102,9 @@ public class FootPlacement : MonoBehaviour
     // How far, in degrees, the heading may turn away from a planted foot before that foot steps to follow
     // it. The hip twists ±30°; past that the twist lands on the knee (±5°).
     [SerializeField, Range(5f, 30f)] float turnStepAngle = 25f;
+    // Stepping into a fall: the player's input along the way the body is falling lands the step this much
+    // further that way, m, at full input. See IntoFallReach.
+    [SerializeField] float inputStepReach = 0.15f;
 
     [Header("Debug")]
     // Off leaves the foot to StepTester alone.
@@ -110,6 +113,9 @@ public class FootPlacement : MonoBehaviour
 
     Vector3 groundPoint;
     Vector3 groundNormal = Vector3.up;
+    // The authored target pose, planted again on a reset.
+    Vector3 spawnPosition;
+    Quaternion spawnRotation;
     // The yaw this foot holds while planted. It follows the body only while swinging: planted, a foot
     // stays where it was put, and the hip, not the knee or ankle, takes the body turning over it.
     Quaternion facing = Quaternion.identity;
@@ -149,7 +155,7 @@ public class FootPlacement : MonoBehaviour
 
     void Awake()
     {
-        if (!playerRig || !balanceSensor || !otherFoot || !ghostThigh || !kneeHint)
+        if (!playerRig || !balanceSensor || !playerController || !otherFoot || !ghostThigh || !kneeHint)
         {
             Debug.LogError("FootPlacement: unassigned references — disabling.", this);
             enabled = false;
@@ -165,15 +171,27 @@ public class FootPlacement : MonoBehaviour
         // Without this the ground cast lands on the character itself.
         groundMask = ~LayerMask.GetMask("PlayerBody");
 
-        // Start planted wherever the target was authored.
-        groundPoint = transform.position - Vector3.up * FootGroundOffset;
+        spawnPosition = transform.position;
+        spawnRotation = transform.rotation;
+        PlantAtSpawn();
+    }
+
+    // Planted wherever the target was authored, mid-step or not: at spawn, and when the character is reset.
+    public void PlantAtSpawn()
+    {
+        isStepping = false;
+        groundNormal = Vector3.up;
+        transform.SetPositionAndRotation(spawnPosition, spawnRotation);
+        groundPoint = spawnPosition - Vector3.up * FootGroundOffset;
         landingPoint = liftoffPoint = groundPoint;
-        facing = liftoffFacing = YawOf(transform.forward);
+        facing = liftoffFacing = YawOf(spawnRotation * Vector3.forward);
+        LastLandTime = 0f;
     }
 
     void FixedUpdate()
     {
-        if (autoStep)
+        // Down, nothing steps: a step can't catch a body that's already on the ground.
+        if (autoStep && !playerController.IsFallen)
             DecideStep();
 
         if (isStepping)
@@ -332,7 +350,7 @@ public class FootPlacement : MonoBehaviour
         Vector3 toCapture = capture + drift - liftoffSole;
         Vector3 along = Vector3.Project(toCapture, Forward);
         Vector3 sole = liftoffSole + along * captureGain + (toCapture - along)
-                     + ghostHips.right * (side * hipHalfWidth);
+                     + ghostHips.right * (side * hipHalfWidth) + IntoFallReach(toCapture);
         Vector3 landing = sole - Forward * SoleCentreForward;
         landing.y = liftoff.y;
 
@@ -349,6 +367,24 @@ public class FootPlacement : MonoBehaviour
         }
 
         return landing;
+    }
+
+    // How much further the player's input puts this step along the fall, `fall` being the way from the
+    // foot to where the body will be caught. Only ever further: input against the fall is answered by
+    // BalanceController's counter torque, and shortening the catch would only fail it. And never from
+    // forward input along the heading: a forward walk is a fall forward, and lengthening its steps would
+    // brake it.
+    Vector3 IntoFallReach(Vector3 fall)
+    {
+        if (fall.sqrMagnitude < 1e-6f) return Vector3.zero;
+        Vector3 steer = playerController.SteerWorld;
+        Vector3 heading = playerController.Heading * Vector3.forward;
+        float ahead = Vector3.Dot(steer, heading);
+        if (ahead > 0f) steer -= heading * ahead;
+
+        Vector3 direction = fall.normalized;
+        float into = Vector3.Dot(steer, direction);
+        return into > 0f ? direction * (into * inputStepReach) : Vector3.zero;
     }
 
     // Clamps the landing's sideways distance from the hip centreline: the real hips, moved on by `drift`,

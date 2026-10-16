@@ -60,6 +60,12 @@ public class LegDrive : MonoBehaviour
     // stretch of swing was where most of the rebound happened.
     [SerializeField, Range(0.5f, 1f)] float softenFromSwing = 0.8f;
 
+    [Header("Fallen")]
+    // Once PlayerController says the body is down, the leg drops to this fraction of its stiffness and
+    // stops following the ghost: the body falls as a near-ragdoll, holding a little of its last pose.
+    [SerializeField] PlayerController playerController;
+    [SerializeField, Range(0f, 1f)] float fallenStiffness = 0.1f;
+
     ConfigurableJoint hip, knee, ankle;
     Quaternion thighStart, shinStart, footStart;
 
@@ -159,6 +165,15 @@ public class LegDrive : MonoBehaviour
     // shin's target out of place as well.
     void FixedUpdate()
     {
+        if (playerController.IsFallen)
+        {
+            SetStiffness(hip, hipDrive, ref hipStiffness, fallenStiffness);
+            SetStiffness(knee, kneeDrive, ref kneeStiffness, fallenStiffness);
+            SetStiffness(ankle, ankleDrive, ref ankleStiffness, fallenStiffness);
+            hip.targetAngularVelocity = knee.targetAngularVelocity = ankle.targetAngularVelocity = Vector3.zero;
+            return;
+        }
+
         bool swinging = footPlacement.IsStepping;
         if (wasSwinging && !swinging) landTime = Time.time;
         wasSwinging = swinging;
@@ -277,7 +292,8 @@ public class LegDrive : MonoBehaviour
     }
 
     bool ReferencesAssigned() =>
-        thigh && shin && foot && ghostThigh && ghostShin && ghostFoot && balanceController && footPlacement;
+        thigh && shin && foot && ghostThigh && ghostShin && ghostFoot && balanceController && footPlacement &&
+        playerController;
 
     bool JointsUsable()
     {

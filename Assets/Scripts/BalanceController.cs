@@ -13,6 +13,7 @@ public class BalanceController : MonoBehaviour
     [SerializeField] FootPlacement leftFoot;
     [SerializeField] FootPlacement rightFoot;
     [SerializeField] PlayerController playerController;
+    [SerializeField] TorsoLean torsoLean;
 
     [Header("Stance")]
     // Where PlayerRig puts the ghost hips, measured up from the support plane.
@@ -62,7 +63,16 @@ public class BalanceController : MonoBehaviour
     // holds ~35 N·m against a 20° squaring. If the turn overshoots, lower this, not raise the damper.
     [SerializeField] float uprightYawSpring = 100f;
 
+    [Header("Fighting a Lean")]
+    // Pushing against a lean helps: input opposite the way the pelvis is tipping raises both caps by up to
+    // this, N·m, at full input straight against it. The caps are what let a body tip past saving; this is
+    // how the player argues with them. Without it, input could only make a sideways tip worse: shoved at
+    // 3.4–3.8 m/s with the breach out of reach, no key recovered 3/4, holding against it 1/4 (2026-10-15).
+    [SerializeField] float counterTorque = 200f;
+
     public float StandingHipHeight => standingHipHeight;
+    // How hard the player is pushing against the lean this tick, 0–1. For BalanceHUD and diagnostics.
+    public float Counter { get; private set; }
 
     // Published rather than applied, so that LegDrive stays the only thing writing an ankle joint.
     // It composes into the foot rotation there.
@@ -72,6 +82,15 @@ public class BalanceController : MonoBehaviour
 
     void FixedUpdate()
     {
+        // Down, nothing holds the body up: no ankle trim and no upright torque.
+        if (playerController.IsFallen)
+        {
+            AnkleTrim = Quaternion.identity;
+            UprightYawTorque = 0f;
+            Counter = 0f;
+            return;
+        }
+
         // Read off the feet rather than a fixed offset, so it still means something once the feet have
         // moved. FootPlacement runs later in the tick, so this is last tick's stance, which is fine
         // for a trim.
@@ -100,10 +119,16 @@ public class BalanceController : MonoBehaviour
         return (leftFoot.SupportPoint + rightFoot.SupportPoint) * 0.5f;
     }
 
-    // Where the body tries to hold its capture point: over the stance, leaned by the resultant.
-    public Vector3 BalanceTarget() => StanceCentre() + playerController.ResultantWorld * leanDistance;
+    // Where the body tries to hold its capture point: over the stance, leaned by the resultant, and the
+    // hips shifted along the lean (TorsoLean).
+    public Vector3 BalanceTarget() =>
+        StanceCentre() + playerController.ResultantWorld * leanDistance + torsoLean.HipShift;
 
-    // A PD torque that tips the pelvis back toward vertical. AddTorque is legitimate here and nowhere
+    // Which way the pelvis should point up: vertical, tilted by the lean. PlayerRig tilts the ghost hips
+    // the same way, so the stance legs' hip drives and this torque agree.
+    public Vector3 PelvisUpTarget => torsoLean.HipTilt * Vector3.up;
+
+    // A PD torque that tips the pelvis back toward vertical, leaned by PelvisUpTarget. AddTorque is legitimate here and nowhere
     // else in this system: the pelvis is the root body, with no joint above it to absorb the torque.
     // Anything behind a joint goes through targetRotation.
     //
@@ -119,7 +144,8 @@ public class BalanceController : MonoBehaviour
     // rate ±80°/s at 50 Hz, held to that only by the torque cap. Yaw gets its own, much smaller damper.
     void HoldPelvisUpright()
     {
-        Vector3 tiltAxis = Vector3.Cross(pelvis.rotation * Vector3.up, Vector3.up);
+        Vector3 upTarget = PelvisUpTarget;
+        Vector3 tiltAxis = Vector3.Cross(pelvis.rotation * Vector3.up, upTarget);
         Vector3 yawRate = Vector3.Project(pelvis.angularVelocity, Vector3.up);
         Vector3 tiltRate = pelvis.angularVelocity - yawRate;
         Vector3 pelvisForward = (pelvis.rotation * Vector3.forward).Flat();
@@ -131,7 +157,16 @@ public class BalanceController : MonoBehaviour
         Vector3 pitch = Vector3.Project(torque, right);
         Vector3 rest = torque - pitch;
 
-        Vector3 applied = Vector3.ClampMagnitude(pitch, maxUprightTorque) + Vector3.ClampMagnitude(rest, maxRollTorque);
+        // Which way the pelvis tips past its lean, flat, and how squarely the player's input pushes the
+        // other way.
+        Vector3 lean = (pelvis.rotation * Vector3.up - upTarget).Flat();
+        Counter = lean.sqrMagnitude > 1e-4f
+            ? Mathf.Clamp01(Vector3.Dot(playerController.SteerWorld, -lean.normalized))
+            : 0f;
+        float extra = counterTorque * Counter;
+
+        Vector3 applied = Vector3.ClampMagnitude(pitch, maxUprightTorque + extra)
+                        + Vector3.ClampMagnitude(rest, maxRollTorque + extra);
         pelvis.AddTorque(applied, ForceMode.Force);
         UprightYawTorque = applied.y;
     }

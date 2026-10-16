@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 // Debug tool. Replays the drunk sway from fixed seeds, reloading the scene for each so every run starts
@@ -30,6 +31,9 @@ public class SwayBench : MonoBehaviour
             // setting it sober left the new one settling at whatever drunkenness the scene holds.
             yield return SceneManager.LoadSceneAsync(SceneManager.GetActiveScene().name);
             Time.timeScale = timeScale;
+            // No held keys carried in: a reload doesn't clear the keyboard, and a W left down by an earlier
+            // test turned a whole idle benchmark into a drunk walk.
+            if (Keyboard.current != null) InputSystem.ResetDevice(Keyboard.current);
 
             // Sober while it settles, whatever the scene says.
             PlayerController controller = FindAnyObjectByType<PlayerController>();

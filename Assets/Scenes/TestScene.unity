@@ -1119,6 +1119,7 @@ MonoBehaviour:
   stepHeight: 0.1
   maxSwingDuration: 0.4
   turnStepAngle: 25
+  inputStepReach: 0.15
   autoStep: 1
   logSteps: 0
 --- !u!1 &410087039
@@ -3082,6 +3083,7 @@ MonoBehaviour:
   stepHeight: 0.1
   maxSwingDuration: 0.4
   turnStepAngle: 25
+  inputStepReach: 0.15
   autoStep: 1
   logSteps: 0
 --- !u!1 &1453067851
@@ -3607,6 +3609,8 @@ GameObject:
   - component: {fileID: 1807426357}
   - component: {fileID: 1807426359}
   - component: {fileID: 1807426360}
+  - component: {fileID: 1807426361}
+  - component: {fileID: 1807426362}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -3667,6 +3671,7 @@ MonoBehaviour:
   leftFoot: {fileID: 1443963552}
   rightFoot: {fileID: 401535637}
   playerController: {fileID: 1807426360}
+  torsoLean: {fileID: 1807426362}
   standingHipHeight: 0.85
   ankleTrimGain: 50
   maxAnkleTrim: 12
@@ -3679,6 +3684,7 @@ MonoBehaviour:
   maxRollTorque: 150
   uprightYawDamper: 10
   uprightYawSpring: 100
+  counterTorque: 200
 --- !u!114 &1807426356
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3736,6 +3742,8 @@ MonoBehaviour:
   landingStiffness: 0.3
   landingRampTime: 0.15
   softenFromSwing: 0.8
+  playerController: {fileID: 1807426360}
+  fallenStiffness: 0.1
 --- !u!114 &1807426358
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3761,6 +3769,8 @@ MonoBehaviour:
   landingStiffness: 0.3
   landingRampTime: 0.15
   softenFromSwing: 0.8
+  playerController: {fileID: 1807426360}
+  fallenStiffness: 0.1
 --- !u!114 &1807426359
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3789,16 +3799,78 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   balanceSensor: {fileID: 1807426353}
+  pelvis: {fileID: 735725823}
   drunkAmount: 1
   swayMagnitude: 1.5
   swayRotationRate: 90
   swayResponseSpeed: 3
+  swaySideSpeed: 0.6
   walkDrive: 1
   maxSpeed: 2.5
   maxSideSpeed: 0.6
   momentumTime: 0.8
   steerResponse: 12
   mouseSensitivity: 0.1
+  fallLimit: 0.7
+  breachThreshold: 0.5
+  breachDecay: 0.05
+  topSpeed: 1.5
+  momentumSmoothing: 0.5
+  tiltLimit: 45
+  tiltPerUnit: 45
+  dropLimit: 0.65
+  dropPerUnit: 0.15
+--- !u!114 &1807426361
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1807426351}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 799b325beae5ebd4ebe8eb0e1c939621, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BalanceHUD
+  pixelsPerUnit: 90
+  viewportCenter: {x: 0.5, y: 0.22}
+  lineThickness: 3
+  ringThickness: 2
+  ringSegments: 48
+  swayColor: {r: 1, g: 0.45, b: 0.15, a: 0.9}
+  inputColor: {r: 0.35, g: 0.75, b: 1, a: 0.9}
+  resultantColor: {r: 1, g: 1, b: 1, a: 1}
+  momentumColor: {r: 0.45, g: 0.95, b: 0.5, a: 0.9}
+  ringColor: {r: 1, g: 1, b: 1, a: 0.35}
+  breachColor: {r: 1, g: 0.3, b: 0.25, a: 0.95}
+  flashColor: {r: 1, g: 0.2, b: 0.2, a: 0.55}
+  flashDuration: 0.45
+  showFactors: 1
+  factorPixelsPerUnit: 60
+  maxFactorUnits: 2
+  tiltColor: {r: 0.8, g: 0.5, b: 1, a: 0.95}
+  dropColor: {r: 1, g: 0.85, b: 0.3, a: 0.95}
+--- !u!114 &1807426362
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1807426351}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 58d6eb732c810a0ce95209e8eea6e45f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TorsoLean
+  playerController: {fileID: 1807426360}
+  torsoJoint: {fileID: 64733378}
+  leanTiltScale: 25
+  leanResponse: 8
+  sideLeanBoost: 2.5
+  hipTiltScale: 12
+  maxHipTilt: 15
+  hipShiftScale: 0.12
+  maxHipShift: 0.1
 --- !u!1 &2083852862
 GameObject:
   m_ObjectHideFlags: 0

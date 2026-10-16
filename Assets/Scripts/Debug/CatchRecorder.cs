@@ -144,7 +144,8 @@ public class CatchRecorder : MonoBehaviour
             "yawMomentum,trunkYawMomentum,lLegYawMomentum,rLegYawMomentum,uprightYawTorque," +
             "lHipTwist,lHipTwistTarget,rHipTwist,rHipTwistTarget,lAnkleTwist,lAnkleTwistTarget," +
             "rAnkleTwist,rAnkleTwistTarget,lGhostHipTwist,rGhostHipTwist," +
-            "lGroundX,rGroundX,swayX,swayZ,pelvisRoll\n");
+            "lGroundX,rGroundX,swayX,swayZ,pelvisRoll,momentumX,momentumY,fallLimit,breach,fallen,pelvisTilt," +
+            "momentumCharge,tiltCharge,dropCharge,torsoRoll\n");
     }
 
     void FixedUpdate()
@@ -213,7 +214,16 @@ public class CatchRecorder : MonoBehaviour
                leftFoot.GroundPoint.x, rightFoot.GroundPoint.x,
                controller.SwayWorld.x, controller.SwayWorld.z,
                // Pelvis tilt to the side, degrees, + leaning toward world +X.
-               Roll(pelvis));
+               Roll(pelvis),
+               // The breach fall: momentum (heading frame, resultant units), the ring, the breach 0–1.
+               controller.Momentum.x, controller.Momentum.y, controller.FallLimit, controller.BreachFraction,
+               controller.IsFallen ? 1 : 0,
+               // The pelvis's whole tilt from upright, degrees: what PlayerController's fallTilt reads.
+               Vector3.Angle(pelvis.rotation * Vector3.up, Vector3.up),
+               // What each breach source is charging, breach per second.
+               controller.MomentumCharge, controller.TiltCharge, controller.DropCharge,
+               // The chest's tilt to the side, degrees, + toward world +X, against pelvisRoll.
+               Roll(torso));
 
         if (Time.time - startTime >= duration)
             Write();
