@@ -23,6 +23,7 @@ public class CatchRecorder : MonoBehaviour
     PlayerController controller;
     Transform ghostFootL, ghostFootR, ghostThighL, ghostShinL, thighL, shinL, footL;
     Transform ghostThighR, ghostShinR, thighR, shinR, footR;
+    Transform upperArmL, upperArmR, forearmL, forearmR;
     ConfigurableJoint hipL, hipR, kneeL, kneeR, ankleL, ankleR;
     Collider soleL, soleR;
 
@@ -75,6 +76,10 @@ public class CatchRecorder : MonoBehaviour
                 case "GhostShin_R": ghostShinR = t; break;
                 case "Shin_R": shinR = t; kneeR = t.GetComponent<ConfigurableJoint>(); break;
                 case "Foot_R": footR = t; break;
+                case "UpperArm_L": upperArmL = t; break;
+                case "UpperArm_R": upperArmR = t; break;
+                case "Forearm_L": forearmL = t; break;
+                case "Forearm_R": forearmR = t; break;
             }
         }
         ankleL = leftFootBody.GetComponent<ConfigurableJoint>();
@@ -82,6 +87,24 @@ public class CatchRecorder : MonoBehaviour
         soleL = leftFootBody.GetComponent<Collider>();
         soleR = rightFootBody.GetComponent<Collider>();
     }
+
+    // The arm's long axis (shoulder to elbow) in the heading's frame.
+    Vector3 ArmDirection(Transform upperArm) =>
+        Quaternion.Inverse(controller.Heading) * -upperArm.up;
+
+    float ArmOut(Transform upperArm, float side)
+    {
+        Vector3 d = ArmDirection(upperArm);
+        return Mathf.Atan2(side * d.x, -d.y) * Mathf.Rad2Deg;
+    }
+
+    float ArmForward(Transform upperArm)
+    {
+        Vector3 d = ArmDirection(upperArm);
+        return Mathf.Atan2(d.z, -d.y) * Mathf.Rad2Deg;
+    }
+
+    static float Elbow(Transform upperArm, Transform forearm) => Vector3.Angle(-upperArm.up, -forearm.up);
 
     // A joint's anchor on its parent, in world space: where the physical joint actually is.
     static Vector3 Anchor(ConfigurableJoint joint) =>
@@ -145,7 +168,8 @@ public class CatchRecorder : MonoBehaviour
             "lHipTwist,lHipTwistTarget,rHipTwist,rHipTwistTarget,lAnkleTwist,lAnkleTwistTarget," +
             "rAnkleTwist,rAnkleTwistTarget,lGhostHipTwist,rGhostHipTwist," +
             "lGroundX,rGroundX,swayX,swayZ,pelvisRoll,momentumX,momentumY,fallLimit,breach,fallen,pelvisTilt," +
-            "momentumCharge,tiltCharge,dropCharge,torsoRoll,lCrossing,rCrossing\n");
+            "momentumCharge,tiltCharge,dropCharge,torsoRoll,lCrossing,rCrossing," +
+            "lArmOut,lArmFwd,lElbow,rArmOut,rArmFwd,rElbow\n");
     }
 
     void FixedUpdate()
@@ -225,7 +249,11 @@ public class CatchRecorder : MonoBehaviour
                // The chest's tilt to the side, degrees, + toward world +X, against pelvisRoll.
                Roll(torso),
                // Whether each foot's step is a crossover.
-               leftFoot.IsCrossing ? 1 : 0, rightFoot.IsCrossing ? 1 : 0);
+               leftFoot.IsCrossing ? 1 : 0, rightFoot.IsCrossing ? 1 : 0,
+               // Each arm in the heading's frame, degrees: out to its own side from hanging, forward from
+               // hanging, and the elbow's bend.
+               ArmOut(upperArmL, -1f), ArmForward(upperArmL), Elbow(upperArmL, forearmL),
+               ArmOut(upperArmR, 1f), ArmForward(upperArmR), Elbow(upperArmR, forearmR));
 
         if (Time.time - startTime >= duration)
             Write();
