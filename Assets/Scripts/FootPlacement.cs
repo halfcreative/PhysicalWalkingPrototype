@@ -78,6 +78,13 @@ public class FootPlacement : MonoBehaviour
     const float OutsideMargin = 0.03f;
     // Sole-to-sole width, across the body, past which the far foot closes in (the gather step).
     const float GatherStanceWidth = 0.45f;
+    // A crossover lands at least this far past the lead foot, across the body, and this far ahead of it,
+    // so the feet don't plant on top of each other: it crosses in front. And no further than this to the
+    // wrong side of the hip centreline: the hip adducts 30°, ~0.43 m at standing height, from a hip 0.11 m
+    // out.
+    const float CrossPast = 0.05f;
+    const float CrossAhead = 0.12f;
+    const float MaxCrossHalfWidth = 0.3f;
 
     [Header("Rig")]
     [SerializeField] PlayerRig playerRig;
@@ -105,6 +112,14 @@ public class FootPlacement : MonoBehaviour
     // Stepping into a fall: the player's input along the way the body is falling lands the step this much
     // further that way, m, at full input. See IntoFallReach.
     [SerializeField] float inputStepReach = 0.15f;
+    // Sideways speed, m/s, past which a sideways fall is caught by crossing the trailing foot over in
+    // front of the lead one, rather than stepping the lead foot out again. See CrossoverDue.
+    [SerializeField] float crossoverSpeed = 0.35f;
+    // How far a sidestep out to this foot's own side lands, as a multiple of the sideways distance to the
+    // capture point. Above 1, it lands wide of where the body is falling, so the body is caught inside it.
+    // 1.25 against 1 at sideways sway 1.2, drunk 1.0, 20 seeds: 11/20 up against 10/20, mean 25.2 s
+    // against 22.8 s (2026-10-16). Widening crossovers and inward steps too did worse.
+    [SerializeField] float sideStepGain = 1.25f;
 
     [Header("Debug")]
     // Off leaves the foot to StepTester alone.
@@ -123,6 +138,8 @@ public class FootPlacement : MonoBehaviour
     Vector3 liftoffPoint;
     Vector3 landingPoint;
     bool isStepping;
+    // This step crosses over in front of the other foot, to the other leg's side.
+    bool isCrossing;
     // Trigger-committed steps re-aim at the capture point in flight; StepTester's fixed steps don't.
     bool chasesCapturePoint;
     float stepProgress;   // 0 → 1 over the swing
@@ -135,6 +152,7 @@ public class FootPlacement : MonoBehaviour
     int groundMask;       // everything but the player's own bodies
 
     public bool IsStepping => isStepping;
+    public bool IsCrossing => isStepping && isCrossing;
     // 0 → 1 through the swing; 1 while planted.
     public float SwingProgress => isStepping ? Mathf.Clamp01(stepProgress) : 1f;
     public Vector3 GroundPoint => groundPoint;
@@ -180,6 +198,7 @@ public class FootPlacement : MonoBehaviour
     public void PlantAtSpawn()
     {
         isStepping = false;
+        isCrossing = false;
         groundNormal = Vector3.up;
         transform.SetPositionAndRotation(spawnPosition, spawnRotation);
         groundPoint = spawnPosition - Vector3.up * FootGroundOffset;
@@ -234,20 +253,32 @@ public class FootPlacement : MonoBehaviour
         Vector3 com = balanceSensor.CenterOfMass.Flat();
         Vector3 error = com - ClosestOnSegment(com, mySole, otherSole);
         bool falling = error.magnitude >= stepTriggerDistance;
+        bool crossing = false;
 
-        if (falling)
+        // Which foot, though, by where the body is heading. The centre of mass rests a few cm ahead of
+        // the soles, and against that bias a sideways shove still read as "mostly forward": the far
+        // foot stepped first and the next step crossed the legs.
+        Vector3 heading = capture - ClosestOnSegment(capture, mySole, otherSole);
+
+        // A crossover doesn't wait for the centre of mass to leave the stance: a sideways lurch caught by
+        // the lead foot is back inside it, and the trailing foot closed in as a gather step, which left the
+        // next lead step standing on it.
+        if (CrossoverDue(mySole, otherSole, out bool mine, out float travel))
         {
-            // Which foot, though, by where the body is heading. The centre of mass rests a few cm ahead of
-            // the soles, and against that bias a sideways shove still read as "mostly forward": the far
-            // foot stepped first and the next step crossed the legs.
-            Vector3 heading = capture - ClosestOnSegment(capture, mySole, otherSole);
+            if (!mine) return;
+            // The trailing foot of a crossed stance steps back to its own side: an ordinary step.
+            crossing = side != travel;
+            falling = true;
+        }
+        else if (falling)
+        {
             if (!IsMyTurn(heading, capture, mySole, otherSole)) return;
         }
         else if (!IsMyTurnStep() && !IsMyGatherStep(com, mySole, otherSole)) return;
 
         // A turn step lands where a catch step would: on the capture point, out by this hip's half-width
         // along the body's NEW right, so the foot ends up under its hip in the new heading.
-        Vector3 landing = ComputeLanding(capture, groundPoint, SwingDuration(BodyVelocity.magnitude),
+        Vector3 landing = ComputeLanding(capture, groundPoint, SwingDuration(BodyVelocity.magnitude), crossing,
                                          out Vector3 normal);
         // A turn step may land almost where it lifted off: what it moves is the facing, so it isn't skipped.
         if (falling && (landing - groundPoint).Flat().magnitude < MinStepLength) return;
@@ -255,14 +286,48 @@ public class FootPlacement : MonoBehaviour
         if (logSteps)
         {
             float speed = BodyVelocity.magnitude;
-            Debug.Log($"[{Time.time:F2}] {name} {(falling ? "steps" : "turn-steps")}  turn {TurnAngle:F1}°  " +
+            Debug.Log($"[{Time.time:F2}] {name} {(crossing ? "crosses" : falling ? "steps" : "turn-steps")}  turn {TurnAngle:F1}°  " +
                       $"capture {capture:F3}  error {error:F3} " +
                       $"(|{error.magnitude:F3}|)  from {groundPoint:F3} to {landing:F3}  " +
                       $"COM vel {balanceSensor.CenterOfMassVelocity:F2}  stride cap {StrideLength(speed):F2} " +
                       $"swing {SwingDuration(speed):F2}s", this);
         }
 
-        BeginStep(landing, normal, true);
+        BeginStep(landing, normal, true, crossing);
+    }
+
+    // The crossover: travelling sideways fast enough, with the lead foot only just landed, the trailing
+    // foot crosses over in front of it and lands beyond it. Stepping the lead foot out again
+    // instead swings it while the body stands on the inner foot, with the centre of mass 0.3–0.5 m
+    // outside that foot, and the pelvis rolled further with every lead step: −14°, −33°, −41°, −65°, and
+    // over (sideways sway 1.2, drunk 1.0, seeds 4 and 9, 2026-10-16). A crossover swings a foot while the
+    // body stands on the outer one.
+    //
+    // Lead and trail are by where the feet are along the travel, not which leg is which: once the right
+    // foot has crossed over to the left, it leads, and the left foot's next step back out to its own side
+    // is the same rule. Judged the same from both feet (shared hips, velocity and land times), so exactly
+    // one of them is the one to step. `travel` is +1 falling right, −1 left.
+    bool CrossoverDue(Vector3 mySole, Vector3 otherSole, out bool mine, out float travel)
+    {
+        mine = false;
+        Vector3 right = ghostHips.right;
+        float lateralSpeed = Vector3.Dot(BodyVelocity, right);
+        travel = Mathf.Sign(lateralSpeed);
+
+        // Travelling mostly sideways, and fast. Judged on the velocity, not the capture point: the lead
+        // step lands on the capture point, and the capture point is still just inside the lead foot when
+        // the trailing foot is free to step again (0.03 m, seed 4).
+        if (Mathf.Abs(lateralSpeed) < crossoverSpeed ||
+            Mathf.Abs(lateralSpeed) <= Mathf.Abs(Vector3.Dot(BodyVelocity, Forward)))
+            return false;
+
+        bool iLead = travel * Vector3.Dot(mySole - otherSole, right) > 0f;
+        float leadLand = iLead ? LastLandTime : otherFoot.LastLandTime;
+        float trailLand = iLead ? otherFoot.LastLandTime : LastLandTime;
+        if (leadLand <= trailLand) return false;
+
+        mine = !iLead;
+        return true;
     }
 
     // Which foot steps is a decision, not a race: without one both feet chase the same threshold and it
@@ -319,10 +384,15 @@ public class FootPlacement : MonoBehaviour
     // the same foot out again and again until the legs were 1.2 m apart and the body rolled over (drunk
     // 0.5, seed 4, 2026-10-15). The foot further from the centre of mass closes in, which makes a steady
     // sideways push a sidestep: out, close, out.
+    //
+    // Likewise when the feet are crossed: a crossover that comes to rest is otherwise left standing
+    // crossed, the pelvis rolled ~15° over it, until the next lurch catches it there (sideways sway 1.2,
+    // seed 5, 2026-10-16). The foot further from the centre of mass steps back to its own side.
     bool IsMyGatherStep(Vector3 com, Vector3 mySole, Vector3 otherSole)
     {
-        float width = Mathf.Abs(Vector3.Dot(mySole - otherSole, ghostHips.right));
-        if (width < GatherStanceWidth) return false;
+        float across = side * Vector3.Dot(mySole - otherSole, ghostHips.right);
+        bool crossed = across < 0f;
+        if (Mathf.Abs(across) < GatherStanceWidth && !crossed) return false;
         return (com - mySole).sqrMagnitude > (com - otherSole).sqrMagnitude;
     }
 
@@ -337,7 +407,7 @@ public class FootPlacement : MonoBehaviour
     // clamp held the foot to where the hip WAS, the body travelled 0.4 m during the swing, and every
     // catch step landed under or behind it. None of them braked, and the trailing foot was left 0.8 m
     // back and tripped on its way through.
-    Vector3 ComputeLanding(Vector3 capture, Vector3 liftoff, float timeToLand, out Vector3 normal)
+    Vector3 ComputeLanding(Vector3 capture, Vector3 liftoff, float timeToLand, bool crossing, out Vector3 normal)
     {
         Vector3 drift = BodyVelocity * timeToLand;
 
@@ -345,16 +415,21 @@ public class FootPlacement : MonoBehaviour
         // captureGain only along the body's forward: landing short is what keeps a walk going, but across
         // the body it only under-catches. Shortened sideways too, a steady sideways lurch landed every
         // sidestep ~0.1 m inside the capture point and the body rolled over its outer foot (drunk 0.5,
-        // seed 5, 2026-10-15).
+        // seed 5, 2026-10-15). A sidestep out to this foot's own side lands sideStepGain of the way.
+        //
+        // A crossover isn't offset to its own side: that side is behind it. It lands on the capture point.
         Vector3 liftoffSole = (liftoff + Forward * SoleCentreForward).Flat();
         Vector3 toCapture = capture + drift - liftoffSole;
         Vector3 along = Vector3.Project(toCapture, Forward);
-        Vector3 sole = liftoffSole + along * captureGain + (toCapture - along)
-                     + ghostHips.right * (side * hipHalfWidth) + IntoFallReach(toCapture);
+        Vector3 across = toCapture - along;
+        bool outward = !crossing && side * Vector3.Dot(across, ghostHips.right) > 0f;
+        Vector3 sole = liftoffSole + along * captureGain + across * (outward ? sideStepGain : 1f)
+                     + IntoFallReach(toCapture)
+                     + (crossing ? Vector3.zero : ghostHips.right * (side * hipHalfWidth));
         Vector3 landing = sole - Forward * SoleCentreForward;
         landing.y = liftoff.y;
 
-        landing = ClampStanceWidth(landing, drift);
+        landing = crossing ? ClampCrossover(landing, drift) : ClampStanceWidth(landing, drift);
         landing = ClampStride(landing);
         landing = ClampToReach(landing, drift);
 
@@ -403,6 +478,25 @@ public class FootPlacement : MonoBehaviour
         float fromOther = side * Vector3.Dot(landing - otherFoot.GroundPoint, right);
         float minFromOther = 2f * MinStanceHalfWidth;
         return fromOther >= minFromOther ? landing : landing + right * (side * (minFromOther - fromOther));
+    }
+
+    // ClampStanceWidth for a crossover, which is meant to cross: past the other foot, across the body, by
+    // at least CrossPast, and ahead of it by CrossAhead, so it crosses in front rather than planting on
+    // it. No further to the wrong side of the hips than the hip can adduct.
+    Vector3 ClampCrossover(Vector3 landing, Vector3 drift)
+    {
+        Vector3 right = ghostHips.right;
+        Vector3 other = otherFoot.GroundPoint;
+
+        // −side is the way it crosses.
+        float past = -side * Vector3.Dot(landing - other, right);
+        if (past < CrossPast) landing += right * (-side * (CrossPast - past));
+
+        float wrongSide = -side * Vector3.Dot(landing - (RealHips + drift), right);
+        if (wrongSide > MaxCrossHalfWidth) landing += right * (side * (wrongSide - MaxCrossHalfWidth));
+
+        float ahead = Vector3.Dot(landing - other, Forward);
+        return ahead >= CrossAhead ? landing : landing + Forward * (CrossAhead - ahead);
     }
 
     // How far past the other foot, along the direction of travel, this landing may be. Below a crawl
@@ -484,7 +578,7 @@ public class FootPlacement : MonoBehaviour
         if (chasesCapturePoint)
         {
             Vector3 aim = ComputeLanding(balanceSensor.CapturePoint.Flat(), liftoffPoint, (1f - t) * swing,
-                                         out Vector3 aimNormal);
+                                         isCrossing, out Vector3 aimNormal);
             float fade = 1f - t * t * (3f - 2f * t);
             float weight = Mathf.Clamp01(RetargetStrength * Time.fixedDeltaTime * fade);
             landingPoint = Vector3.Lerp(landingPoint, aim, weight);
@@ -541,10 +635,11 @@ public class FootPlacement : MonoBehaviour
 
     // Commits a step from wherever the foot is now, to a fixed landing. The normal is taken at commit
     // rather than on landing, which only matters on uneven ground; the floor here is flat.
-    public void BeginStep(Vector3 landing, Vector3 normal) => BeginStep(landing, normal, false);
+    public void BeginStep(Vector3 landing, Vector3 normal) => BeginStep(landing, normal, false, false);
 
-    void BeginStep(Vector3 landing, Vector3 normal, bool chaseCapturePoint)
+    void BeginStep(Vector3 landing, Vector3 normal, bool chaseCapturePoint, bool crossing)
     {
+        isCrossing = crossing;
         liftoffPoint = groundPoint;
         liftoffFacing = facing;
         landingPoint = landing;

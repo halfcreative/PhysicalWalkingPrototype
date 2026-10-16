@@ -23,10 +23,11 @@ public class PlayerController : MonoBehaviour
     [SerializeField] float swayMagnitude = 1.5f;
     [SerializeField] float swayRotationRate = 90f;
     [SerializeField] float swayResponseSpeed = 3f;
-    // The sway's terminal speed across the heading, m/s per unit, apart from the input's maxSideSpeed. Kept
-    // at maxSideSpeed for now: the sidestep can't catch more. Drunk 1.0, 10 seeds: 0.6 kept 6/10 up, 0.9
-    // 1/10, 1.2 none, every fall a sideways topple (2026-10-16). Raise it once sideways catching improves.
-    [SerializeField] float swaySideSpeed = 0.6f;
+    // The sway's terminal speed across the heading, m/s per unit, apart from the input's maxSideSpeed: a
+    // drunk lurches sideways harder than they can choose to sidestep. Before crossovers (FootPlacement),
+    // drunk 1.0, 10 seeds: 0.6 kept 6/10 up, 0.9 1/10, 1.2 none. With them, 20 seeds: 0.6 13/20, 0.9
+    // 12/20, 1.2 11/20 (2026-10-16).
+    [SerializeField] float swaySideSpeed = 0.9f;
 
     [Header("Walk")]
     [SerializeField] float walkDrive = 1f;

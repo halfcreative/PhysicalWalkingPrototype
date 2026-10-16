@@ -1120,6 +1120,8 @@ MonoBehaviour:
   maxSwingDuration: 0.4
   turnStepAngle: 25
   inputStepReach: 0.15
+  crossoverSpeed: 0.35
+  sideStepGain: 1.25
   autoStep: 1
   logSteps: 0
 --- !u!1 &410087039
@@ -3084,6 +3086,8 @@ MonoBehaviour:
   maxSwingDuration: 0.4
   turnStepAngle: 25
   inputStepReach: 0.15
+  crossoverSpeed: 0.35
+  sideStepGain: 1.25
   autoStep: 1
   logSteps: 0
 --- !u!1 &1453067851
@@ -3804,7 +3808,7 @@ MonoBehaviour:
   swayMagnitude: 1.5
   swayRotationRate: 90
   swayResponseSpeed: 3
-  swaySideSpeed: 0.6
+  swaySideSpeed: 0.9
   walkDrive: 1
   maxSpeed: 2.5
   maxSideSpeed: 0.6
@@ -3867,6 +3871,7 @@ MonoBehaviour:
   leanTiltScale: 25
   leanResponse: 8
   sideLeanBoost: 2.5
+  sideLeanFadeRoll: {x: 5, y: 15}
   hipTiltScale: 12
   maxHipTilt: 15
   hipShiftScale: 0.12

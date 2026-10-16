@@ -28,6 +28,11 @@ public class TorsoLean : MonoBehaviour
     // Multiplies the sideways lean. Sideways momentum runs far smaller than forward (the body can't
     // sidestep at walking pace), so at 1 a strafe leaned the chest ~5° (2026-10-16).
     [SerializeField] float sideLeanBoost = 2.5f;
+    // The sideways lean fades out as the pelvis rolls past the tilt it was meant to hold, over this range
+    // of degrees: a body losing it sideways stops leaning into the fall. Leaning into a sideways lurch is
+    // what tips it over its outer foot: at sideways sway 1.2, drunk 1.0, 10 seeds, 3/10 stayed up with the
+    // lean and 8/10 without it; with the fade, 6/10, keeping ~90% of the lean's roll (2026-10-16).
+    [SerializeField] Vector2 sideLeanFadeRoll = new(5f, 15f);
 
     [Header("Hips")]
     // Degrees the pelvis tilts per unit of lean, top toward the travel (DrunkWalkHome's hipTiltScale).
@@ -65,15 +70,16 @@ public class TorsoLean : MonoBehaviour
 
     void FixedUpdate()
     {
-        // Down, the body straightens back out rather than holding the last lean.
-        Vector2 momentum = playerController.Momentum;
-        Vector2 target = playerController.IsFallen ? Vector2.zero : new Vector2(momentum.x * sideLeanBoost, momentum.y);
-        lean = Vector2.Lerp(lean, target, 1f - Mathf.Exp(-leanResponse * Time.fixedDeltaTime));
-
         // In the heading's frame, the same as Momentum: forward pitches over, sideways rolls.
         Quaternion heading = playerController.Heading;
         Vector3 right = heading * Vector3.right;
         Vector3 forward = heading * Vector3.forward;
+
+        // Down, the body straightens back out rather than holding the last lean.
+        Vector2 momentum = playerController.Momentum;
+        Vector2 target = playerController.IsFallen ? Vector2.zero
+                       : new Vector2(momentum.x * sideLeanBoost * SideLeanFade(right), momentum.y);
+        lean = Vector2.Lerp(lean, target, 1f - Mathf.Exp(-leanResponse * Time.fixedDeltaTime));
 
         Vector2 hip = Vector2.ClampMagnitude(lean * hipTiltScale, maxHipTilt);
         HipTilt = Quaternion.AngleAxis(hip.y, right) * Quaternion.AngleAxis(-hip.x, forward);
@@ -87,4 +93,16 @@ public class TorsoLean : MonoBehaviour
         // and a pelvis that tips in a stumble both carry the chest with them.
         torsoJoint.SetTargetWorldRotation(tilt * pelvis.rotation * startLocalRotation, startLocalRotation, pelvis);
     }
+
+    // 1 while the pelvis's roll is within sideLeanFadeRoll.x of the roll it's meant to hold (last tick's
+    // HipTilt), 0 past sideLeanFadeRoll.y. Degrees about the heading's forward, either way.
+    float SideLeanFade(Vector3 right)
+    {
+        float roll = RollAbout(pelvis.up, right);
+        float intended = RollAbout(HipTilt * Vector3.up, right);
+        return 1f - Mathf.InverseLerp(sideLeanFadeRoll.x, sideLeanFadeRoll.y, Mathf.Abs(roll - intended));
+    }
+
+    static float RollAbout(Vector3 up, Vector3 right) =>
+        Mathf.Atan2(Vector3.Dot(up, right), Vector3.Dot(up, Vector3.up)) * Mathf.Rad2Deg;
 }

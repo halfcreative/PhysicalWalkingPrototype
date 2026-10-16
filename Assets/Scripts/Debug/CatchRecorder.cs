@@ -145,7 +145,7 @@ public class CatchRecorder : MonoBehaviour
             "lHipTwist,lHipTwistTarget,rHipTwist,rHipTwistTarget,lAnkleTwist,lAnkleTwistTarget," +
             "rAnkleTwist,rAnkleTwistTarget,lGhostHipTwist,rGhostHipTwist," +
             "lGroundX,rGroundX,swayX,swayZ,pelvisRoll,momentumX,momentumY,fallLimit,breach,fallen,pelvisTilt," +
-            "momentumCharge,tiltCharge,dropCharge,torsoRoll\n");
+            "momentumCharge,tiltCharge,dropCharge,torsoRoll,lCrossing,rCrossing\n");
     }
 
     void FixedUpdate()
@@ -223,7 +223,9 @@ public class CatchRecorder : MonoBehaviour
                // What each breach source is charging, breach per second.
                controller.MomentumCharge, controller.TiltCharge, controller.DropCharge,
                // The chest's tilt to the side, degrees, + toward world +X, against pelvisRoll.
-               Roll(torso));
+               Roll(torso),
+               // Whether each foot's step is a crossover.
+               leftFoot.IsCrossing ? 1 : 0, rightFoot.IsCrossing ? 1 : 0);
 
         if (Time.time - startTime >= duration)
             Write();
