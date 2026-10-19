@@ -960,7 +960,7 @@ Camera:
   far clip plane: 1000
   field of view: 60
   orthographic: 0
-  orthographic size: 5
+  orthographic size: 10
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -984,8 +984,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
-  m_LocalPosition: {x: 0, y: 1.5, z: 4}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.3, y: 2.2, z: -5}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -4047,7 +4047,7 @@ MonoBehaviour:
     m_Value: 0
   OutputChannel: 1
   StandbyUpdate: 2
-  m_StreamingVersion: 0
+  m_StreamingVersion: 20241001
   m_LegacyPriority: 0
   Target:
     TrackingTarget: {fileID: 661625306}
@@ -4082,7 +4082,7 @@ Transform:
   m_GameObject: {fileID: 1206370114}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.5, z: 4}
+  m_LocalPosition: {x: 0.3, y: 2.2, z: -5}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -4991,6 +4991,8 @@ GameObject:
   - component: {fileID: 1807426364}
   - component: {fileID: 1807426363}
   - component: {fileID: 1807426365}
+  - component: {fileID: 1807426367}
+  - component: {fileID: 1807426366}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -5059,18 +5061,18 @@ MonoBehaviour:
   playerController: {fileID: 1807426360}
   torsoLean: {fileID: 1807426362}
   standingHipHeight: 0.85
-  ankleTrimGain: 50
-  maxAnkleTrim: 12
+  pitchTrimGain: 50
+  maxPitchTrim: 12
   rollTrimGain: 50
   maxRollTrim: 8
   leanDistance: 0.1
   uprightSpring: 1000
   uprightDamper: 120
-  maxUprightTorque: 400
+  maxPitchTorque: 400
   maxRollTorque: 150
-  uprightYawDamper: 10
-  uprightYawSpring: 100
-  counterTorque: 200
+  yawDamper: 10
+  yawSpring: 100
+  counterSteerTorque: 200
 --- !u!114 &1807426356
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5102,7 +5104,7 @@ MonoBehaviour:
   maxBindAngle: 0.5
   maxBindOffset: 0.005
   footGroundOffset: 0.1
-  hipsOverStance: 1
+  balanceShiftGain: 1
 --- !u!114 &1807426357
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5123,13 +5125,12 @@ MonoBehaviour:
   ghostFoot: {fileID: 1027110034}
   balanceController: {fileID: 1807426354}
   footPlacement: {fileID: 401535637}
+  playerController: {fileID: 1807426360}
   stanceAnkleStiffness: 0.7
   swingFeedForward: 1
   landingStiffness: 0.3
   landingRampTime: 0.15
   softenFromSwing: 0.8
-  playerController: {fileID: 1807426360}
-  fallenStiffness: 0.1
 --- !u!114 &1807426358
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5150,13 +5151,12 @@ MonoBehaviour:
   ghostFoot: {fileID: 599828190}
   balanceController: {fileID: 1807426354}
   footPlacement: {fileID: 1443963552}
+  playerController: {fileID: 1807426360}
   stanceAnkleStiffness: 0.7
   swingFeedForward: 1
   landingStiffness: 0.3
   landingRampTime: 0.15
   softenFromSwing: 0.8
-  playerController: {fileID: 1807426360}
-  fallenStiffness: 0.1
 --- !u!114 &1807426359
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5191,24 +5191,21 @@ MonoBehaviour:
   swayRotationRate: 90
   swayResponseSpeed: 3
   swaySideSpeed: 0.9
-  walkDrive: 1
+  moveInputScale: 1
   maxSpeed: 2.5
   maxSideSpeed: 0.6
-  momentumTime: 0.8
-  steerResponse: 12
-  mouseSensitivity: 0.1
-  cameraTarget: {fileID: 661625306}
-  cameraTargetHeight: 0.55
-  verticalClamp: 80
-  fallLimit: 0.7
-  breachThreshold: 0.5
-  breachDecay: 0.05
-  topSpeed: 1.5
+  accelerationTime: 0.8
+  moveInputResponse: 12
+  drunkMomentumLimit: 0.7
+  fallMeterCapacity: 0.5
+  fallMeterDrainRate: 0.05
+  fullMomentumSpeed: 1.5
   momentumSmoothing: 0.5
   tiltLimit: 45
   tiltPerUnit: 45
   dropLimit: 0.65
   dropPerUnit: 0.15
+  fallenStiffness: 0.1
 --- !u!114 &1807426361
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5228,10 +5225,10 @@ MonoBehaviour:
   ringSegments: 48
   swayColor: {r: 1, g: 0.45, b: 0.15, a: 0.9}
   inputColor: {r: 0.35, g: 0.75, b: 1, a: 0.9}
-  resultantColor: {r: 1, g: 1, b: 1, a: 1}
+  netForceColor: {r: 1, g: 1, b: 1, a: 1}
   momentumColor: {r: 0.45, g: 0.95, b: 0.5, a: 0.9}
   ringColor: {r: 1, g: 1, b: 1, a: 0.35}
-  breachColor: {r: 1, g: 0.3, b: 0.25, a: 0.95}
+  fallMeterColor: {r: 1, g: 0.3, b: 0.25, a: 0.95}
   flashColor: {r: 1, g: 0.2, b: 0.2, a: 0.55}
   flashDuration: 0.45
   showFactors: 1
@@ -5253,7 +5250,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TorsoLean
   playerController: {fileID: 1807426360}
   torsoJoint: {fileID: 64733378}
-  leanTiltScale: 25
+  chestTiltScale: 25
   leanResponse: 8
   sideLeanBoost: 2.5
   sideLeanFadeRoll: {x: 5, y: 15}
@@ -5290,7 +5287,6 @@ MonoBehaviour:
   counterResponse: 6
   maxRaise: 100
   elbowBendPerRaise: 0.3
-  fallenStiffness: 0.1
 --- !u!114 &1807426364
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5320,7 +5316,6 @@ MonoBehaviour:
   counterResponse: 6
   maxRaise: 100
   elbowBendPerRaise: 0.3
-  fallenStiffness: 0.1
 --- !u!114 &1807426365
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5340,7 +5335,54 @@ MonoBehaviour:
   drunkSpring: 70
   soberDamping: 1
   drunkDamping: 0.5
-  fallenStiffness: 0.1
+--- !u!114 &1807426366
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1807426351}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 624b492894bafbb8a8dd68a738223235, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerCameraTarget
+  cameraTarget: {fileID: 661625306}
+  height: 0.55
+--- !u!114 &1807426367
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1807426351}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6009ec5801daa4c5b97767245e45b237, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LocalPlayerInput
+  resetAction:
+    m_Name: Reset
+    m_Type: 1
+    m_ExpectedControlType: 
+    m_Id: bdee7383-b009-44ae-817b-36d7e60c540d
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: 59379c3a-eef7-4e81-bba9-d27d329bfdaa
+      m_Path: <Keyboard>/r
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Reset
+      m_Flags: 0
+    m_Flags: 0
+    m_Priority: 0
+  mouseSensitivity: 0.1
+  stickYawSpeed: 90
+  stickPitchSpeed: 120
+  maxPitch: 80
 --- !u!1 &1980625207
 GameObject:
   m_ObjectHideFlags: 0

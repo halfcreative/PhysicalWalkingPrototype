@@ -1,12 +1,12 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
 
 // The player's move and the fall. The drunk sway and the move input are 2D vectors in the heading's frame
-// (x right, y forward); their sum, NetForce, drives the body's momentum. The mouse owns the heading.
+// (x right, y forward); their sum, NetForce, drives the body's momentum. Input arrives through SetInput,
+// from LocalPlayerInput, a test bench or the network; this never reads a device.
 //
 // The fall meter charges while momentum is outside MomentumLimit, the pelvis tips too far, or the centre
-// of mass drops too low. When full, the character falls and every drive goes limp. R resets.
+// of mass drops too low. When full, the character falls and every drive goes limp.
 [DefaultExecutionOrder(-60)]
 public class PlayerController : MonoBehaviour
 {
@@ -36,15 +36,6 @@ public class PlayerController : MonoBehaviour
     [SerializeField, FormerlySerializedAs("momentumTime")] float accelerationTime = 0.8f;
     [SerializeField, FormerlySerializedAs("steerResponse")] float moveInputResponse = 12f;
 
-    [Header("Look")]
-    // Degrees of heading per pixel of mouse travel.
-    [SerializeField] float mouseSensitivity = 0.1f;
-    // Followed by the CinemachineCamera. Not parented to the body; placed every frame in LateUpdate.
-    [SerializeField] Transform cameraTarget;
-    // Height of the camera target above the centre of mass, m.
-    [SerializeField] float cameraTargetHeight = 0.55f;
-    [SerializeField, FormerlySerializedAs("verticalClamp")] float maxCameraPitch = 80f;
-
     [Header("Fall Meter")]
     // Momentum limit at full drunkenness. Eases down to this from the sober limit as drunkAmount rises.
     [SerializeField, FormerlySerializedAs("fallLimit")] float drunkMomentumLimit = 0.7f;
@@ -70,9 +61,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField, Range(0f, 1f)] float fallenStiffness = 0.1f;
 
     readonly DrunkSway sway = new DrunkSway();
-    float pendingMouseX;
     float headingYaw;
-    float cameraPitch;
     Vector3 smoothedVelocity;
     float fallMeter;
 
@@ -83,7 +72,11 @@ public class PlayerController : MonoBehaviour
     FootPlacement[] feet;
 
     public event System.Action Fell;
+    // Raised after ResetCharacter, so input sources can re-sync their heading to the spawn heading.
+    public event System.Action CharacterReset;
     public bool IsFallen { get; private set; }
+    // The latest input given; the next physics tick acts on it.
+    public CharacterInput CurrentInput { get; private set; }
     public float FallenStiffness => fallenStiffness;
     public float DrunkAmount => drunkAmount;
 
@@ -127,10 +120,14 @@ public class PlayerController : MonoBehaviour
 
         ResetSway();
         headingYaw = spawnYaw = transform.eulerAngles.y;
-
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        CurrentInput = NeutralInput();
     }
+
+    // Held until replaced, so a source only needs to call this when its input changes.
+    public void SetInput(CharacterInput input) => CurrentInput = input;
+
+    // Standing still, facing the spawn heading.
+    public CharacterInput NeutralInput() => new() { HeadingYaw = spawnYaw };
 
     public void SetDrunkAmount(float amount) => drunkAmount = Mathf.Clamp01(amount);
 
@@ -141,7 +138,8 @@ public class PlayerController : MonoBehaviour
         sway.Reset();
     }
 
-    // Puts the character back at its spawn pose, still, with the sway restarted.
+    // Puts the character back at its spawn pose, still, with the sway restarted and the input neutral.
+    // Call between physics ticks, so the next tick measures the reset pose before anything acts on it.
     public void ResetCharacter()
     {
         Rigidbody[] bodies = balanceSensor.Bodies;
@@ -158,55 +156,30 @@ public class PlayerController : MonoBehaviour
             foot.PlantAtSpawn();
 
         headingYaw = spawnYaw;
-        pendingMouseX = 0f;
+        CurrentInput = NeutralInput();
         MoveInput = Vector2.zero;
         smoothedVelocity = Vector3.zero;
         Momentum = Vector2.zero;
         ClearFallMeter();
         ResetSway();
         IsFallen = false;
-    }
-
-    // Input is read per frame so no delta or press is lost between ticks. The mouse is banked and spent
-    // in FixedUpdate; a reset lands between ticks, before anything measures the pose.
-    void Update()
-    {
-        Mouse mouse = Mouse.current;
-        if (mouse != null)
-        {
-            Vector2 delta = mouse.delta.ReadValue();
-            pendingMouseX += delta.x;
-            cameraPitch = Mathf.Clamp(cameraPitch - delta.y * mouseSensitivity, -maxCameraPitch, maxCameraPitch);
-        }
-
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard != null && keyboard.rKey.wasPressedThisFrame) ResetCharacter();
-    }
-
-    // After interpolation, so the camera target moves as smoothly as the body is drawn.
-    void LateUpdate()
-    {
-        if (cameraTarget == null) return;
-
-        cameraTarget.position = balanceSensor.InterpolatedCenterOfMass() + Vector3.up * cameraTargetHeight;
-        // The banked mouse turns the camera now; the heading catches up next tick.
-        float yaw = headingYaw + pendingMouseX * mouseSensitivity;
-        cameraTarget.rotation = Quaternion.Euler(cameraPitch, yaw, 0f);
+        CharacterReset?.Invoke();
     }
 
     void FixedUpdate()
     {
         float dt = Time.fixedDeltaTime;
 
-        headingYaw = Mathf.Repeat(headingYaw + pendingMouseX * mouseSensitivity, 360f);
-        pendingMouseX = 0f;
+        // The heading follows input even when fallen, so the player can look around while down.
+        headingYaw = Mathf.Repeat(CurrentInput.HeadingYaw, 360f);
 
         UpdateMomentum(dt);
 
         if (IsFallen) return;
 
         sway.Tick(swayMagnitude * drunkAmount, swayRotationRate, swayResponseSpeed, dt);
-        MoveInput = Vector2.Lerp(MoveInput, ReadMoveKeys() * moveInputScale, Smoothing.Factor(moveInputResponse, dt));
+        Vector2 move = Vector2.ClampMagnitude(CurrentInput.Move, 1f) * moveInputScale;
+        MoveInput = Vector2.Lerp(MoveInput, move, Smoothing.Factor(moveInputResponse, dt));
 
         // The fall is judged on momentum, not force: balance is lost by travelling faster than you can
         // catch, not by asking to.
@@ -252,7 +225,7 @@ public class PlayerController : MonoBehaviour
     {
         Debug.Log($"[{Time.time:F2}] Fell. Charges: momentum {MomentumCharge:F2} " +
                   $"(|{Momentum.magnitude:F2}| against {MomentumLimit:F2}), tilt {TiltCharge:F2} " +
-                  $"({PelvisTilt:F0}°), drop {DropCharge:F2} (CoM {CenterOfMassHeight:F2} m). R to reset.", this);
+                  $"({PelvisTilt:F0}°), drop {DropCharge:F2} (CoM {CenterOfMassHeight:F2} m).", this);
 
         IsFallen = true;
         ClearFallMeter();
@@ -268,17 +241,4 @@ public class PlayerController : MonoBehaviour
     }
 
     Vector3 ToWorld(Vector2 headingFrame) => Heading * new Vector3(headingFrame.x, 0f, headingFrame.y);
-
-    // WASD or arrow keys.
-    static Vector2 ReadMoveKeys()
-    {
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard == null) return Vector2.zero;
-        bool right = keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed;
-        bool left = keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed;
-        bool forward = keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed;
-        bool back = keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed;
-        Vector2 move = new((right ? 1f : 0f) - (left ? 1f : 0f), (forward ? 1f : 0f) - (back ? 1f : 0f));
-        return move.sqrMagnitude > 1f ? move.normalized : move;
-    }
 }
