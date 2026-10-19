@@ -156,6 +156,7 @@ public class PlayerController : MonoBehaviour
         headingYaw = spawnYaw = transform.eulerAngles.y;
     }
 
+    public float DrunkAmount => drunkAmount;
     public void SetDrunkAmount(float amount) => drunkAmount = Mathf.Clamp01(amount);
 
     // Restarts the sway from calm. A non-zero seed replays the same sway every time, so a fall can be

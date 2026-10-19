@@ -23,7 +23,7 @@ public class CatchRecorder : MonoBehaviour
     PlayerController controller;
     Transform ghostFootL, ghostFootR, ghostThighL, ghostShinL, thighL, shinL, footL;
     Transform ghostThighR, ghostShinR, thighR, shinR, footR;
-    Transform upperArmL, upperArmR, forearmL, forearmR;
+    Transform upperArmL, upperArmR, forearmL, forearmR, head;
     ConfigurableJoint hipL, hipR, kneeL, kneeR, ankleL, ankleR;
     Collider soleL, soleR;
 
@@ -80,6 +80,7 @@ public class CatchRecorder : MonoBehaviour
                 case "UpperArm_R": upperArmR = t; break;
                 case "Forearm_L": forearmL = t; break;
                 case "Forearm_R": forearmR = t; break;
+                case "Head": head = t; break;
             }
         }
         ankleL = leftFootBody.GetComponent<ConfigurableJoint>();
@@ -105,6 +106,24 @@ public class CatchRecorder : MonoBehaviour
     }
 
     static float Elbow(Transform upperArm, Transform forearm) => Vector3.Angle(-upperArm.up, -forearm.up);
+
+    float HeadPitch()
+    {
+        Vector3 f = Quaternion.Inverse(controller.Heading) * head.forward;
+        return Mathf.Atan2(-f.y, new Vector2(f.x, f.z).magnitude) * Mathf.Rad2Deg;
+    }
+
+    float HeadRoll()
+    {
+        Vector3 u = Quaternion.Inverse(controller.Heading) * head.up;
+        return Mathf.Atan2(u.x, u.y) * Mathf.Rad2Deg;
+    }
+
+    float HeadYaw()
+    {
+        Vector3 f = Quaternion.Inverse(controller.Heading) * head.forward;
+        return Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg;
+    }
 
     // A joint's anchor on its parent, in world space: where the physical joint actually is.
     static Vector3 Anchor(ConfigurableJoint joint) =>
@@ -169,7 +188,7 @@ public class CatchRecorder : MonoBehaviour
             "rAnkleTwist,rAnkleTwistTarget,lGhostHipTwist,rGhostHipTwist," +
             "lGroundX,rGroundX,swayX,swayZ,pelvisRoll,momentumX,momentumY,fallLimit,breach,fallen,pelvisTilt," +
             "momentumCharge,tiltCharge,dropCharge,torsoRoll,lCrossing,rCrossing," +
-            "lArmOut,lArmFwd,lElbow,rArmOut,rArmFwd,rElbow\n");
+            "lArmOut,lArmFwd,lElbow,rArmOut,rArmFwd,rElbow,headPitch,headRoll,headYaw\n");
     }
 
     void FixedUpdate()
@@ -253,7 +272,9 @@ public class CatchRecorder : MonoBehaviour
                // Each arm in the heading's frame, degrees: out to its own side from hanging, forward from
                // hanging, and the elbow's bend.
                ArmOut(upperArmL, -1f), ArmForward(upperArmL), Elbow(upperArmL, forearmL),
-               ArmOut(upperArmR, 1f), ArmForward(upperArmR), Elbow(upperArmR, forearmR));
+               ArmOut(upperArmR, 1f), ArmForward(upperArmR), Elbow(upperArmR, forearmR),
+               // The head in the heading's frame, degrees: nodding forward, tipping right, turned right.
+               HeadPitch(), HeadRoll(), HeadYaw());
 
         if (Time.time - startTime >= duration)
             Write();
