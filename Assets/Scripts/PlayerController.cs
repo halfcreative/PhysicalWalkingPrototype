@@ -45,6 +45,15 @@ public class PlayerController : MonoBehaviour
     [Header("Look")]
     // Degrees of heading per pixel of mouse travel. Not scaled by time: a mouse delta is a displacement.
     [SerializeField] float mouseSensitivity = 0.1f;
+    // The scene's CinemachineCamera follows this, as in DrunkWalkHome. Not a child of the body: nothing
+    // under Player moves with it, so it's placed every frame over the centre of mass, turned to the
+    // heading and the camera's pitch.
+    [SerializeField] Transform cameraTarget;
+    // Height of the target above the centre of mass, m. 0.55 over a standing 0.86 puts it at
+    // DrunkWalkHome's 1.4.
+    [SerializeField] float cameraTargetHeight = 0.55f;
+    // Pitch is the camera's alone: the body only ever turns to the heading's yaw.
+    [SerializeField] float verticalClamp = 80f;
 
     [Header("Instability")]
     // DrunkWalkHome's fall: a ring the body's momentum must stay inside, and a breach that charges while
@@ -100,6 +109,7 @@ public class PlayerController : MonoBehaviour
     Vector2 steerInput;
     float pendingMouseX;
     float headingYaw;
+    float cameraPitch;
     Vector3 smoothedVelocity;
     float breach;
 
@@ -154,6 +164,9 @@ public class PlayerController : MonoBehaviour
 
         ResetSway();
         headingYaw = spawnYaw = transform.eulerAngles.y;
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
     public float DrunkAmount => drunkAmount;
@@ -201,10 +214,38 @@ public class PlayerController : MonoBehaviour
     void Update()
     {
         Mouse mouse = Mouse.current;
-        if (mouse != null) pendingMouseX += mouse.delta.ReadValue().x;
+        if (mouse != null)
+        {
+            Vector2 delta = mouse.delta.ReadValue();
+            pendingMouseX += delta.x;
+            cameraPitch = Mathf.Clamp(cameraPitch - delta.y * mouseSensitivity, -verticalClamp, verticalClamp);
+        }
 
         Keyboard kb = Keyboard.current;
         if (kb != null && kb.rKey.wasPressedThisFrame) ResetCharacter();
+    }
+
+    // After the bodies are interpolated, so the target moves as smoothly as the body is drawn.
+    void LateUpdate()
+    {
+        if (cameraTarget == null) return;
+
+        // The centre of mass as drawn: BalanceSensor's is the physics tick's, a step behind the render
+        // and stepping at the tick rate, which the camera would judder by.
+        Vector3 weighted = Vector3.zero;
+        float totalMass = 0f;
+        foreach (Rigidbody body in bodies)
+        {
+            // centerOfMass is offset by the transform's position and rotation, not its scale.
+            Transform t = body.transform;
+            weighted += body.mass * (t.position + t.rotation * body.centerOfMass);
+            totalMass += body.mass;
+        }
+        cameraTarget.position = weighted / totalMass + Vector3.up * cameraTargetHeight;
+
+        // The banked mouse is spent on the heading at the next tick; the camera turns with it now.
+        float yaw = headingYaw + pendingMouseX * mouseSensitivity;
+        cameraTarget.rotation = Quaternion.Euler(cameraPitch, yaw, 0f);
     }
 
     void FixedUpdate()
