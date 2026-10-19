@@ -65,10 +65,10 @@ public class PlayerController : MonoBehaviour
     Vector3 smoothedVelocity;
     float fallMeter;
 
-    // Spawn pose of every body, for ResetCharacter.
-    Vector3[] spawnPositions;
-    Quaternion[] spawnRotations;
-    float spawnYaw;
+    // Spawn pose of every body relative to this root, for ResetCharacter. Relative, because NGO moves the
+    // root to its spawn point after Awake; the root itself never moves after that.
+    Vector3[] spawnLocalPositions;
+    Quaternion[] spawnLocalRotations;
     FootPlacement[] feet;
 
     public event System.Action Fell;
@@ -81,7 +81,8 @@ public class PlayerController : MonoBehaviour
     public float DrunkAmount => drunkAmount;
 
     public Quaternion Heading => Quaternion.Euler(0f, headingYaw, 0f);
-    public Quaternion SpawnHeading => Quaternion.Euler(0f, spawnYaw, 0f);
+    public Quaternion SpawnHeading => Quaternion.Euler(0f, SpawnYaw, 0f);
+    float SpawnYaw => transform.eulerAngles.y;
 
     // Heading frame (x right, y forward), in force units.
     public Vector2 Sway => sway.Current;
@@ -110,24 +111,34 @@ public class PlayerController : MonoBehaviour
     {
         feet = GetComponentsInChildren<FootPlacement>();
         Rigidbody[] bodies = balanceSensor.Bodies;
-        spawnPositions = new Vector3[bodies.Length];
-        spawnRotations = new Quaternion[bodies.Length];
+        spawnLocalPositions = new Vector3[bodies.Length];
+        spawnLocalRotations = new Quaternion[bodies.Length];
         for (int i = 0; i < bodies.Length; i++)
         {
-            spawnPositions[i] = bodies[i].transform.position;
-            spawnRotations[i] = bodies[i].transform.rotation;
+            Transform body = bodies[i].transform;
+            spawnLocalPositions[i] = transform.InverseTransformPoint(body.position);
+            spawnLocalRotations[i] = Quaternion.Inverse(transform.rotation) * body.rotation;
         }
 
         ResetSway();
-        headingYaw = spawnYaw = transform.eulerAngles.y;
+        headingYaw = SpawnYaw;
         CurrentInput = NeutralInput();
+        IgnoreOwnCollisions(GetComponentsInChildren<Collider>());
+    }
+
+    // Characters collide with each other on the PlayerBody layer, but a character's own parts don't.
+    static void IgnoreOwnCollisions(Collider[] colliders)
+    {
+        for (int i = 0; i < colliders.Length; i++)
+            for (int j = i + 1; j < colliders.Length; j++)
+                Physics.IgnoreCollision(colliders[i], colliders[j]);
     }
 
     // Held until replaced, so a source only needs to call this when its input changes.
     public void SetInput(CharacterInput input) => CurrentInput = input;
 
     // Standing still, facing the spawn heading.
-    public CharacterInput NeutralInput() => new() { HeadingYaw = spawnYaw };
+    public CharacterInput NeutralInput() => new() { HeadingYaw = SpawnYaw };
 
     public void SetDrunkAmount(float amount) => drunkAmount = Mathf.Clamp01(amount);
 
@@ -146,16 +157,18 @@ public class PlayerController : MonoBehaviour
         for (int i = 0; i < bodies.Length; i++)
         {
             Rigidbody body = bodies[i];
-            body.transform.SetPositionAndRotation(spawnPositions[i], spawnRotations[i]);
-            body.position = spawnPositions[i];
-            body.rotation = spawnRotations[i];
+            Vector3 position = transform.TransformPoint(spawnLocalPositions[i]);
+            Quaternion rotation = transform.rotation * spawnLocalRotations[i];
+            body.transform.SetPositionAndRotation(position, rotation);
+            body.position = position;
+            body.rotation = rotation;
             body.linearVelocity = Vector3.zero;
             body.angularVelocity = Vector3.zero;
         }
         foreach (FootPlacement foot in feet)
             foot.PlantAtSpawn();
 
-        headingYaw = spawnYaw;
+        headingYaw = SpawnYaw;
         CurrentInput = NeutralInput();
         MoveInput = Vector2.zero;
         smoothedVelocity = Vector3.zero;

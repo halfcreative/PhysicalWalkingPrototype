@@ -98,8 +98,9 @@ public class FootPlacement : MonoBehaviour
 
     Vector3 groundPoint;
     Vector3 groundNormal = Vector3.up;
-    Vector3 spawnPosition;
-    Quaternion spawnRotation;
+    // Authored target pose relative to the character root, which NGO moves to its spawn point after Awake.
+    Vector3 spawnLocalPosition;
+    Quaternion spawnLocalRotation;
     // Yaw held while planted; it turns to the heading only during a swing.
     Quaternion facing = Quaternion.identity;
     Quaternion liftoffFacing = Quaternion.identity;
@@ -156,14 +157,19 @@ public class FootPlacement : MonoBehaviour
 
         groundMask = ~LayerMask.GetMask("PlayerBody");
 
-        spawnPosition = transform.position;
-        spawnRotation = transform.rotation;
+        Transform root = playerRig.transform;
+        spawnLocalPosition = root.InverseTransformPoint(transform.position);
+        spawnLocalRotation = Quaternion.Inverse(root.rotation) * transform.rotation;
         PlantAtSpawn();
     }
 
     // Plants the foot at its authored pose, cancelling any step.
     public void PlantAtSpawn()
     {
+        Transform root = playerRig.transform;
+        Vector3 spawnPosition = root.TransformPoint(spawnLocalPosition);
+        Quaternion spawnRotation = root.rotation * spawnLocalRotation;
+
         isStepping = false;
         isCrossing = false;
         groundNormal = Vector3.up;

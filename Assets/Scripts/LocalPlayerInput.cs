@@ -3,7 +3,8 @@ using UnityEngine.InputSystem;
 
 // The local player's devices, turned into PlayerController input every frame: Move and Look from the
 // project-wide input actions (keyboard, mouse or gamepad), and a reset. Locks the cursor while enabled.
-// Only the local player's character has one; a test bench disables it to drive the character itself.
+// Enabled only on the local player's character (see NetworkPlayer); a test bench disables it to drive the
+// character itself.
 [RequireComponent(typeof(PlayerController))]
 public class LocalPlayerInput : MonoBehaviour
 {
@@ -25,6 +26,9 @@ public class LocalPlayerInput : MonoBehaviour
     InputAction moveAction, lookAction;
     float yaw, pitch;
 
+    // What the reset button does. Unset, it resets the character directly; NetworkPlayer routes it to the host.
+    public System.Action ResetHandler { get; set; }
+
     void Awake()
     {
         playerController = GetComponent<PlayerController>();
@@ -32,11 +36,10 @@ public class LocalPlayerInput : MonoBehaviour
         lookAction = InputSystem.actions.FindAction(LookActionName, throwIfNotFound: true);
     }
 
-    // Picks up the character's current heading, so re-enabling after a bench doesn't snap it back.
     void OnEnable()
     {
-        yaw = playerController.CurrentInput.HeadingYaw;
-        playerController.CharacterReset += OnCharacterReset;
+        SyncHeading();
+        playerController.CharacterReset += SyncHeading;
         resetAction.Enable();
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
@@ -44,13 +47,15 @@ public class LocalPlayerInput : MonoBehaviour
 
     void OnDisable()
     {
-        playerController.CharacterReset -= OnCharacterReset;
+        playerController.CharacterReset -= SyncHeading;
         resetAction.Disable();
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
     }
 
-    void OnCharacterReset() => yaw = playerController.CurrentInput.HeadingYaw;
+    // Takes the heading from the character's current input: on enable, so re-enabling after a bench
+    // doesn't snap it back, and after a reset.
+    public void SyncHeading() => yaw = playerController.CurrentInput.HeadingYaw;
 
     void Update()
     {
@@ -63,7 +68,7 @@ public class LocalPlayerInput : MonoBehaviour
         pitch = Mathf.Clamp(pitch - look.y, -maxPitch, maxPitch);
 
         // Between physics ticks, so the next tick measures the reset pose.
-        if (resetAction.WasPressedThisFrame()) playerController.ResetCharacter();
+        if (resetAction.WasPressedThisFrame()) (ResetHandler ?? playerController.ResetCharacter)();
 
         playerController.SetInput(new CharacterInput
         {

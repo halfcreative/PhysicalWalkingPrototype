@@ -1,8 +1,8 @@
 using UnityEngine;
 
 // Places the CinemachineCamera's follow target over the rendered centre of mass, turned to the latest
-// input's heading and pitch. The target isn't parented to the body. Only the local player's character
-// has one.
+// input's heading and pitch. The target isn't parented to the body. Enabled only on the local player's
+// character (see NetworkPlayer).
 [RequireComponent(typeof(PlayerController), typeof(BalanceSensor))]
 public class PlayerCameraTarget : MonoBehaviour
 {
@@ -12,6 +12,8 @@ public class PlayerCameraTarget : MonoBehaviour
 
     PlayerController playerController;
     BalanceSensor balanceSensor;
+
+    public Transform Target => cameraTarget;
 
     void Awake()
     {
