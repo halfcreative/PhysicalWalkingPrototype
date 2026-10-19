@@ -1,11 +1,10 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.InputSystem;
-using UnityEngine.SceneManagement;
 
-// Debug tool. Replays the drunk sway from fixed seeds, reloading the scene for each run, and records each to
-// Logs/catch_<prefix>_s<seed>.csv. Add it to an empty GameObject at runtime and call Run; it survives the
-// reloads. Time-scaled: physics still steps at the fixed rate, so runs only finish sooner.
+// Debug tool. Replays the drunk sway from fixed seeds with neutral input, and records each run to
+// Logs/catch_<prefix>_s<seed>.csv. Each run starts from ResetCharacter and a sober settle. Run it on the
+// host: add it to an empty GameObject at runtime and call Run. Time-scaled: physics still steps at the
+// fixed rate, so runs only finish sooner. A seed replays its fall to within about a second.
 public class SwayBench : MonoBehaviour
 {
     // Seconds to settle, sober, before the sway starts.
@@ -15,35 +14,38 @@ public class SwayBench : MonoBehaviour
 
     public void Run(string prefix, float drunkAmount, int[] seeds, float seconds, float timeScale)
     {
-        DontDestroyOnLoad(gameObject);
         StartCoroutine(RunAll(prefix, drunkAmount, seeds, seconds, timeScale));
     }
 
     IEnumerator RunAll(string prefix, float drunkAmount, int[] seeds, float seconds, float timeScale)
     {
         IsRunning = true;
+        PlayerController playerController = FindAnyObjectByType<PlayerController>();
+        BalanceSensor balanceSensor = playerController.GetComponent<BalanceSensor>();
+        CatchRecorder recorder = playerController.GetComponent<CatchRecorder>();
+        if (recorder == null) recorder = playerController.gameObject.AddComponent<CatchRecorder>();
+        // The local player's devices are ignored; ResetCharacter leaves the input neutral.
+        LocalPlayerInput localInput = playerController.GetComponent<LocalPlayerInput>();
+        bool inputWasEnabled = localInput != null && localInput.enabled;
+        if (localInput != null) localInput.enabled = false;
+        Time.timeScale = timeScale;
+
         foreach (int seed in seeds)
         {
-            // Wait for the load to finish, or the old scene's player is still found.
-            yield return SceneManager.LoadSceneAsync(SceneManager.GetActiveScene().name);
-            Time.timeScale = timeScale;
-            // A reload doesn't release held keys.
-            if (Keyboard.current != null) InputSystem.ResetDevice(Keyboard.current);
-
-            PlayerController playerController = FindAnyObjectByType<PlayerController>();
             playerController.SetDrunkAmount(0f);
+            playerController.ResetCharacter();
             yield return new WaitForSeconds(SettleTime);
 
-            BalanceSensor balanceSensor = playerController.GetComponent<BalanceSensor>();
             if (balanceSensor.CenterOfMass.y < 0.75f)
                 Debug.LogWarning($"SwayBench: seed {seed} starts already down (CoM {balanceSensor.CenterOfMass.y:F2} m)");
 
             playerController.SetDrunkAmount(drunkAmount);
             playerController.ResetSway(seed);
-            CatchRecorder recorder = playerController.gameObject.AddComponent<CatchRecorder>();
             recorder.Record($"{prefix}_s{seed}", seconds);
             while (recorder.IsRecording) yield return null;
         }
+
+        if (localInput != null) localInput.enabled = inputWasEnabled;
         Time.timeScale = 1f;
         IsRunning = false;
         Debug.Log($"SwayBench: {prefix} done, {seeds.Length} runs");

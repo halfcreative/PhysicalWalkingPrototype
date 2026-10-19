@@ -44,6 +44,10 @@ public class BalanceHUD : MonoBehaviour
     Texture2D discTexture;
     GUIStyle labelStyle;
 
+    // Where the numbers come from. Unset, they're captured live from this character, which only works where
+    // it's simulated; NetworkPlayer points a client's HUD at the readout the host sends it.
+    public System.Func<BalanceReadout> ReadoutSource { get; set; }
+
     void Awake()
     {
         playerController = GetComponent<PlayerController>();
@@ -73,12 +77,12 @@ public class BalanceHUD : MonoBehaviour
 
     void OnEnable()
     {
-        if (playerController != null) playerController.Fell += OnFell;
+        if (playerController != null) playerController.Fell += ShowFall;
     }
 
     void OnDisable()
     {
-        if (playerController != null) playerController.Fell -= OnFell;
+        if (playerController != null) playerController.Fell -= ShowFall;
     }
 
     void OnDestroy()
@@ -87,17 +91,20 @@ public class BalanceHUD : MonoBehaviour
         if (discTexture != null) Destroy(discTexture);
     }
 
-    void OnFell() => flashUntil = Time.time + flashDuration;
+    // Flashes the ring. Called on the character's own Fell where it's simulated, and by NetworkPlayer on a
+    // client when the host reports the fall.
+    public void ShowFall() => flashUntil = Time.time + flashDuration;
 
     void OnGUI()
     {
         if (playerController == null) return;
+        BalanceReadout readout = ReadoutSource?.Invoke() ?? BalanceReadout.Capture(playerController, balanceController);
 
         Vector2 origin = new(
             Screen.width * viewportCenter.x,
             Screen.height * (1f - viewportCenter.y));   // GUI space is y-down
 
-        float ringRadius = playerController.MomentumLimit * pixelsPerUnit;
+        float ringRadius = readout.MomentumLimit * pixelsPerUnit;
 
         Color previousColor = GUI.color;
         Matrix4x4 previousMatrix = GUI.matrix;
@@ -112,24 +119,23 @@ public class BalanceHUD : MonoBehaviour
 
         DrawRing(origin, ringRadius, ringColor);
 
-        float fallMeter = playerController.FallMeterFraction;
-        if (fallMeter > 0.001f)
-            DrawArc(origin, ringRadius, fallMeterColor, ringThickness * 2f, fallMeter);
+        if (readout.FallMeterFraction > 0.001f)
+            DrawArc(origin, ringRadius, fallMeterColor, ringThickness * 2f, readout.FallMeterFraction);
 
-        DrawVector(origin, playerController.Sway, swayColor);
-        DrawVector(origin, playerController.MoveInput, inputColor);
-        DrawVector(origin, playerController.Momentum, momentumColor, tipMarker: true);
+        DrawVector(origin, readout.Sway, swayColor);
+        DrawVector(origin, readout.MoveInput, inputColor);
+        DrawVector(origin, readout.Momentum, momentumColor, tipMarker: true);
         // Last, so it's never hidden.
-        DrawVector(origin, playerController.NetForce, netForceColor);
+        DrawVector(origin, readout.NetForce, netForceColor);
 
-        if (showFactors) DrawFactors(origin + new Vector2(-ringRadius, ringRadius + 12f));
+        if (showFactors) DrawFactors(readout, origin + new Vector2(-ringRadius, ringRadius + 12f));
 
         GUI.matrix = previousMatrix;
         GUI.color = previousColor;
     }
 
     // The fall meter as a percentage, then each source's live charge as a bar.
-    void DrawFactors(Vector2 topLeft)
+    void DrawFactors(BalanceReadout readout, Vector2 topLeft)
     {
         labelStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 12, normal = { textColor = Color.white } };
         const float rowHeight = 16f;
@@ -137,16 +143,14 @@ public class BalanceHUD : MonoBehaviour
 
         GUI.color = Color.white;
         GUI.Label(new Rect(topLeft.x, topLeft.y, 300f, rowHeight),
-                  $"fall meter {playerController.FallMeterFraction * 100f:F0}%", labelStyle);
+                  $"fall meter {readout.FallMeterFraction * 100f:F0}%", labelStyle);
 
-        DrawFactorRow(1, $"momentum {playerController.Momentum.magnitude:F2}/{playerController.MomentumLimit:F2}",
-                      playerController.MomentumCharge, momentumColor);
-        DrawFactorRow(2, $"tilt {playerController.PelvisTilt:F0}°", playerController.TiltCharge, tiltColor);
-        DrawFactorRow(3, $"drop CoM {playerController.CenterOfMassHeight:F2} m", playerController.DropCharge, dropColor);
+        DrawFactorRow(1, $"momentum {readout.Momentum.magnitude:F2}/{readout.MomentumLimit:F2}",
+                      readout.MomentumCharge, momentumColor);
+        DrawFactorRow(2, $"tilt {readout.PelvisTilt:F0}°", readout.TiltCharge, tiltColor);
+        DrawFactorRow(3, $"drop CoM {readout.CenterOfMassHeight:F2} m", readout.DropCharge, dropColor);
         // Not a source: how hard the input pushes against the lean.
-        if (balanceController != null)
-            DrawFactorRow(4, $"counter-steer {balanceController.CounterSteer * 100f:F0}%",
-                          balanceController.CounterSteer, inputColor);
+        DrawFactorRow(4, $"counter-steer {readout.CounterSteer * 100f:F0}%", readout.CounterSteer, inputColor);
 
         void DrawFactorRow(int row, string label, float charge, Color color)
         {
