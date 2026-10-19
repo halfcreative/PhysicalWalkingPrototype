@@ -1,31 +1,30 @@
 using UnityEngine;
 
-// The whole body's centre of mass, and its capture point: the spot on the ground where, if a foot
-// were planted, the body would come to rest over it. Everything balance-related reads these.
+// The whole body's centre of mass and capture point: the spot on the ground where a planted foot would
+// bring the body to rest. Everything balance-related reads these.
 [DefaultExecutionOrder(-100)]
 public class BalanceSensor : MonoBehaviour
 {
-    const float Gravity = 9.81f;
-    // Floor on the pendulum height, so a body folding onto the ground can't send the capture point to
+    // Floor on the pendulum height, so a body folded onto the ground can't send the capture point to
     // infinity.
     const float MinPendulumHeight = 0.3f;
 
-    Rigidbody[] bodies;
     float totalMass;
 
+    // Every Rigidbody in the character.
+    public Rigidbody[] Bodies { get; private set; }
     public Vector3 CenterOfMass { get; private set; }
     public Vector3 CenterOfMassVelocity { get; private set; }
-    // On the ground (y = 0): the centre of mass projected down, plus its horizontal velocity divided by
-    // the pendulum's natural frequency √(g / h).
+    // On the ground (y = 0): the centre of mass plus its horizontal velocity over √(g / h).
     public Vector3 CapturePoint { get; private set; }
 
     void Awake()
     {
-        bodies = GetComponentsInChildren<Rigidbody>();
-        foreach (Rigidbody body in bodies)
+        Bodies = GetComponentsInChildren<Rigidbody>();
+        foreach (Rigidbody body in Bodies)
             totalMass += body.mass;
 
-        Debug.Log($"BalanceSensor: {bodies.Length} bodies, {totalMass:F1} kg", this);
+        Debug.Log($"BalanceSensor: {Bodies.Length} bodies, {totalMass:F1} kg", this);
     }
 
     void FixedUpdate()
@@ -33,7 +32,7 @@ public class BalanceSensor : MonoBehaviour
         Vector3 weightedPosition = Vector3.zero;
         Vector3 weightedVelocity = Vector3.zero;
 
-        foreach (Rigidbody body in bodies)
+        foreach (Rigidbody body in Bodies)
         {
             weightedPosition += body.mass * body.worldCenterOfMass;
             weightedVelocity += body.mass * body.linearVelocity;
@@ -42,14 +41,23 @@ public class BalanceSensor : MonoBehaviour
         CenterOfMass = weightedPosition / totalMass;
         CenterOfMassVelocity = weightedVelocity / totalMass;
 
-        // TODO: the ground is y = 0 for now. Uneven ground needs the height of the support under
-        // the body here.
+        // TODO: assumes flat ground at y = 0.
         float height = Mathf.Max(CenterOfMass.y, MinPendulumHeight);
-        float omega = Mathf.Sqrt(Gravity / height);
+        float omega = Mathf.Sqrt(Physics.gravity.magnitude / height);
+        CapturePoint = CenterOfMass.Flat() + CenterOfMassVelocity.Flat() / omega;
+    }
 
-        Vector3 groundCom = CenterOfMass.Flat();
-        Vector3 groundVelocity = CenterOfMassVelocity.Flat();
-        CapturePoint = groundCom + groundVelocity / omega;
+    // The centre of mass as rendered, from the interpolated transforms. CenterOfMass is the physics
+    // tick's, which steps at the tick rate and would make a camera judder.
+    public Vector3 InterpolatedCenterOfMass()
+    {
+        Vector3 weighted = Vector3.zero;
+        foreach (Rigidbody body in Bodies)
+        {
+            Transform t = body.transform;
+            weighted += body.mass * (t.position + t.rotation * body.centerOfMass);
+        }
+        return weighted / totalMass;
     }
 
     void OnDrawGizmos()

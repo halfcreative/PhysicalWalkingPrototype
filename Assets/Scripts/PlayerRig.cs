@@ -1,11 +1,15 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
-// Places the ghost hips each tick, and owns the rig's measurements. At Awake it measures the leg
-// chain from the joint anchors — which are the truth, not the transform positions — and checks that
-// the ghost skeleton starts indistinguishable from the physical one.
+// Places the ghost hips each tick, and owns the rig's measurements. At Awake it measures the legs from the
+// joint anchors and checks the ghost skeleton starts aligned with the physical one.
 [DefaultExecutionOrder(-40)]
 public class PlayerRig : MonoBehaviour
 {
+    // Cap on the balance shift, m. Past about half a foot length the planted legs can't pull the body back;
+    // that needs a step. Uncapped, a hard shove launched the body off its planted leg.
+    const float MaxBalanceShift = 0.08f;
+
     [Header("Physical")]
     [SerializeField] Rigidbody pelvis;
     [SerializeField] Transform thighL, shinL, footL;
@@ -22,34 +26,22 @@ public class PlayerRig : MonoBehaviour
     [SerializeField] float maxBindAngle = 0.5f;     // degrees
     [SerializeField] float maxBindOffset = 0.005f;  // metres
 
-    // Ankle to sole. The IK targets the ankle, so FootPlacement lifts every target by this much.
+    // Ankle to sole. The IK targets the ankle, so foot targets sit this far above the ground.
     [SerializeField] float footGroundOffset = 0.10f;
 
     [Header("Balance")]
-    // How hard the standing legs push the capture point back over the middle of the planted feet, as
-    // the fraction of that error the ghost hips are shifted by. See FixedUpdate.
-    [SerializeField, Range(0f, 2f)] float hipsOverStance = 1f;
-
-    // The most that shift may be, in metres. Past about a foot's half-length the planted legs can't pull
-    // the body back anyway; that's a step's job. Uncapped, a 2 m/s push put the ghost hips 0.5 m behind
-    // the body, and the planted leg kicked so hard it launched the character off the ground.
-    const float MaxHipShift = 0.08f;
+    // Fraction of the capture point's error the ghost hips are shifted by; see FixedUpdate.
+    [SerializeField, Range(0f, 2f), FormerlySerializedAs("hipsOverStance")] float balanceShiftGain = 1f;
 
     public float FootGroundOffset => footGroundOffset;
     public Transform GhostHips => ghostHips;
-
-    // Hip to ankle along a straight leg (thigh + shin), averaged over both legs at Awake. The reach
-    // clamp and the stride formula read it.
+    // Hip to ankle along a straight leg, averaged over both legs.
     public float LegLength { get; private set; }
-
-    // How far the real hips sit below the ghost hips, this tick. The legs copy the ghost's joint angles,
-    // so a swinging foot hangs this much below its target. ~3.5 cm standing, ~7 cm in single support.
+    // How far the real hips sit below the ghost hips this tick. A swinging foot hangs this much low.
     public float HipSag { get; private set; }
-
-    // How far (horizontally) the ghost hips sit from the real ones this tick; see FixedUpdate.
+    // Horizontal offset of the ghost hips from the real ones this tick.
     public Vector3 GhostHipOffset { get; private set; }
 
-    // Hip, knee and ankle in world space, read off the joint anchors.
     struct LegMeasurement
     {
         public Vector3 Hip, Knee, Ankle;
@@ -74,7 +66,6 @@ public class PlayerRig : MonoBehaviour
 
         LegMeasurement left = MeasureLeg(thighL, shinL, footL);
         LegMeasurement right = MeasureLeg(thighR, shinR, footR);
-
         LegLength = (left.Length + right.Length) * 0.5f;
 
         Debug.Log($"PlayerRig L  hip {left.Hip:F3} knee {left.Knee:F3} ankle {left.Ankle:F3}  " +
@@ -90,60 +81,41 @@ public class PlayerRig : MonoBehaviour
         AssertBindPose(left, right);
     }
 
-    // The ghost hips take their height from the support plane rather than the pelvis. That
-    // substitution hands the leg drives a standing error to work against, where a ghost placed at
-    // the body's actual pose would give them zero error and no reason to produce torque.
+    // Height: standingHipHeight above the planted feet, not at the pelvis, so the stance legs always have
+    // an error to push against. Measured from the support points, not the ankles, so a foot leaving the
+    // ground doesn't lift the target with it.
     //
-    // Horizontally they sit off the body by the capture point's error from the middle of the planted
-    // feet, leaned by the sway and input (BalanceController.BalanceTarget), times hipsOverStance. The
-    // planted legs then push the body back over its base of support, which is the ankle/hip balance
-    // strategy done through the legs: internal torques, bounded by what the feet can push against, so a
-    // big enough shove still needs a step. At 0 nothing holds the body over its feet, and it balances
-    // like a pencil on its end.
+    // Horizontal: the body's hips, shifted by the capture point's error from the balance target. The planted
+    // legs then push the body back over its feet. The capture point, not the hips, because it carries
+    // velocity and so damps the push. The swing leg must not feel this shift; FootPlacement adds
+    // GhostHipOffset back onto its target.
     //
-    // The capture point, not the hips: it carries the body's velocity, which damps the push. Pulling
-    // the hips themselves over the feet was a spring with no damper: the body settled for a second,
-    // then swayed through the stance and fell.
-    //
-    // It's the middle of the planted feet, never one foot while both are down: over a single foot,
-    // each leg would demand the body be over its own and the two would fight. The swinging leg must
-    // not feel this offset at all, or its foot lands off by the same amount, so FootPlacement adds
-    // GhostHipOffset back onto the swing target.
+    // Tilted by the lean, so the stance legs agree with BalanceController's upright torque.
     void FixedUpdate()
     {
         Vector3 hip = HipCentre();
         Vector3 stance = balanceController.StanceCentre();
         Vector3 error = (balanceController.BalanceTarget() - balanceSensor.CapturePoint).Flat();
-        Vector3 over = hip + Vector3.ClampMagnitude(error * hipsOverStance, MaxHipShift);
+        Vector3 shifted = hip + Vector3.ClampMagnitude(error * balanceShiftGain, MaxBalanceShift);
 
-        // Height from where the planted feet are ON THE GROUND, not from the physical ankles. In a
-        // stumble both feet leave the ground for a moment; measured off the ankles, the ghost hips rose
-        // with them, the planted leg's target went out of reach, and its foot hovered while the body ran
-        // over it.
-        // Tilted by the lean as well as yawed, so the stance legs hold the pelvis at the angle the upright
-        // torque aims for (BalanceController.PelvisUpTarget) rather than fighting it back to level.
         ghostHips.SetPositionAndRotation(
-            new Vector3(over.x, stance.y + balanceController.StandingHipHeight, over.z),
+            new Vector3(shifted.x, stance.y + balanceController.StandingHipHeight, shifted.z),
             Quaternion.FromToRotation(Vector3.up, balanceController.PelvisUpTarget) * PelvisYaw());
 
         HipSag = Mathf.Max(0f, ghostHips.position.y - hip.y);
-        GhostHipOffset = new Vector3(over.x - hip.x, 0f, over.z - hip.z);
+        GhostHipOffset = (shifted - hip).Flat();
     }
 
-    // Horizontal position comes from the body, never from a foot. Place it over a foot and each
-    // leg demands the body be over its own, the two fight, and leaning becomes impossible.
+    // From the body, never a foot: over a foot, each leg would demand the body be over its own.
     Vector3 HipCentre() =>
         (AnchorOf(thighL, pelvis.transform) + AnchorOf(thighR, pelvis.transform)) * 0.5f;
 
-    // The lower physical sole, for the gizmo: it's what shows how far the body has sagged. Read off the
-    // ankle anchors rather than the foot transforms, because the foot box's centre is not the ankle.
+    // The lower sole, from the ankle anchors. For the gizmo.
     float SupportPlaneY() =>
         Mathf.Min(AnchorOf(footL, shinL).y, AnchorOf(footR, shinR).y) - footGroundOffset;
 
-    // Yaw only — a pelvis pitched forward mid-stumble should not tilt the whole solve. Taken
-    // from the Rigidbody and flattened onto XZ rather than from eulerAngles.y, which degenerates
-    // in exactly the near-vertical poses this has to survive. When forward itself goes vertical
-    // the fallback gives a yaw ~90° off the true one: a discontinuity, but never a NaN.
+    // Yaw only, so a pitched pelvis doesn't tilt the solve. Falls back to the up vector when forward is
+    // vertical, which jumps ~90° but never gives NaN.
     Quaternion PelvisYaw()
     {
         Vector3 forward = (pelvis.rotation * Vector3.forward).Flat();
@@ -153,9 +125,6 @@ public class PlayerRig : MonoBehaviour
         return Quaternion.LookRotation(forward.normalized, Vector3.up);
     }
 
-    // A joint sits on the child body and its connectedAnchor is in the PARENT's local space,
-    // so read each anchor off the parent. TransformPoint applies scale, which these scaled
-    // primitives need — without it the thigh comes out as 2.0 instead of 0.42.
     LegMeasurement MeasureLeg(Transform thigh, Transform shin, Transform foot)
     {
         LegMeasurement m = default;
@@ -167,26 +136,19 @@ public class PlayerRig : MonoBehaviour
         return m;
     }
 
-    // Silent on a missing joint — JointsPresent does the loud reporting once at Awake, so a
-    // half-wired rig can't spam the console from OnDrawGizmos on every editor repaint.
+    // The joint's world position. connectedAnchor is in the parent's local space, scale included. Silent
+    // on a missing joint; JointsPresent reports it once at Awake.
     static Vector3 AnchorOf(Transform body, Transform parent)
     {
         ConfigurableJoint joint = body.GetComponent<ConfigurableJoint>();
         return joint == null ? parent.position : parent.TransformPoint(joint.connectedAnchor);
     }
 
-    // The ghost must start indistinguishable from the physical rig: with both at identity, a
-    // ghost bone's world rotation maps 1:1 onto the body's desired world rotation and there is
-    // no offset table to carry. A ghost silently a few degrees off reads as a permanent lean
-    // and gets blamed on drive gains for a day before anyone looks here.
-    //
-    // Awake only. Once the rig solves (Step 2) the ghost is SUPPOSED to diverge — that
-    // divergence is the tracking error the whole system runs on. This is a bind pose check,
-    // and it belongs where it can only ever see the bind pose.
+    // The ghost must start aligned with the physical rig, or the offset reads as a permanent lean. Awake
+    // only: once running, the ghost is meant to diverge. Each ghost bone sits on the joint above its
+    // segment (GhostThigh on the hip, and so on).
     void AssertBindPose(LegMeasurement left, LegMeasurement right)
     {
-        // A ghost bone is named for the segment it starts, so it sits on the joint ABOVE that
-        // segment: GhostThigh on the hip, GhostShin on the knee, GhostFoot on the ankle.
         CheckBone(ghostThighL, thighL, left.Hip);
         CheckBone(ghostShinL, shinL, left.Knee);
         CheckBone(ghostFootL, footL, left.Ankle);
@@ -228,9 +190,7 @@ public class PlayerRig : MonoBehaviour
         return ok;
     }
 
-    // Runs in edit mode too: connectedAnchor and the transforms are serialized data, and
-    // checking alignment before pressing play is most of the point. So re-measure here rather
-    // than use the Awake-cached values, which don't exist outside play mode.
+    // Runs in edit mode too, so alignment can be checked before pressing play.
     void OnDrawGizmos()
     {
         if (!ReferencesAssigned()) return;
@@ -246,9 +206,7 @@ public class PlayerRig : MonoBehaviour
         DrawSupportPlane();
     }
 
-    // The invariant this component exists to hold: in play mode the yellow line IS
-    // standingHipHeight, and it should stay that length while the body sags away from it. Out of
-    // play mode nothing has placed the hips yet, so it just measures the authored pose.
+    // In play mode the yellow line is standingHipHeight, and stays that length while the body sags.
     void DrawSupportPlane()
     {
         Vector3 hip = HipCentre();
@@ -260,7 +218,7 @@ public class PlayerRig : MonoBehaviour
         Gizmos.DrawLine(support, ghostHips.position);
     }
 
-    void DrawLeg(LegMeasurement m, Transform gThigh, Transform gShin, Transform gFoot,
+    void DrawLeg(LegMeasurement m, Transform ghostThigh, Transform ghostShin, Transform ghostFoot,
                  Transform thigh, Transform shin, Transform foot)
     {
         // Where the leg actually hinges.
@@ -269,15 +227,13 @@ public class PlayerRig : MonoBehaviour
         Gizmos.DrawSphere(m.Knee, 0.02f);
         Gizmos.DrawSphere(m.Ankle, 0.02f);
 
-        // The ghost chain, tinted by how far each bone has diverged from its body. At the bind
-        // pose that is zero and this is an alignment check; from Step 5 on it is the tracking
-        // error, and this gizmo is the instrument for reading it.
-        DrawBone(gThigh, gShin, thigh);
-        DrawBone(gShin, gFoot, shin);
+        // The ghost chain, tinted by tracking error.
+        DrawBone(ghostThigh, ghostShin, thigh);
+        DrawBone(ghostShin, ghostFoot, shin);
 
-        Gizmos.color = TrackingColor(gFoot, foot);
-        Gizmos.DrawWireSphere(gFoot.position, 0.025f);
-        Gizmos.DrawLine(gFoot.position, gFoot.position + gFoot.forward * 0.12f);
+        Gizmos.color = TrackingColor(ghostFoot, foot);
+        Gizmos.DrawWireSphere(ghostFoot.position, 0.025f);
+        Gizmos.DrawLine(ghostFoot.position, ghostFoot.position + ghostFoot.forward * 0.12f);
     }
 
     void DrawBone(Transform from, Transform to, Transform body)
@@ -287,7 +243,7 @@ public class PlayerRig : MonoBehaviour
         Gizmos.DrawWireSphere(from.position, 0.025f);
     }
 
-    // Green while the body is where the ghost asked, red once it is 20° or more behind.
+    // Green while the body tracks its ghost bone, red at 20° or more behind.
     static Color TrackingColor(Transform ghost, Transform body) =>
         Color.Lerp(Color.green, Color.red,
                    Mathf.InverseLerp(5f, 20f, Quaternion.Angle(ghost.rotation, body.rotation)));

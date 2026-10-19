@@ -4,30 +4,27 @@ using System.Text;
 using Unity.Collections;
 using UnityEngine;
 
-// Debug tool. Records one row per physics tick for a few seconds and writes it to
-// Logs/catch_<label>.csv, for taking a catch step apart after the fact. Add it to Player at runtime and
-// call Record(label); it stops and writes on its own. Never in the scene.
-//
-// Columns are in the frame of the push: world Z is forward, X is right. Ground forces come from
-// Physics.ContactEvent, with contact reporting switched on for the two foot colliders.
+// Debug tool. Records one row per physics tick to Logs/catch_<label>.csv. Add it to Player at runtime and
+// call Record(label); it stops and writes on its own. World Z is forward, X right. Ground forces come from
+// Physics.ContactEvent on the two foot colliders.
 [DefaultExecutionOrder(5)]
 public class CatchRecorder : MonoBehaviour
 {
     [SerializeField] float duration = 3f;
 
-    BalanceSensor sensor;
-    BalanceController balance;
+    BalanceSensor balanceSensor;
+    BalanceController balanceController;
+    PlayerController playerController;
+    PlayerRig playerRig;
     FootPlacement leftFoot, rightFoot;
     Rigidbody pelvis, torso, leftFootBody, rightFootBody;
-    PlayerRig rig;
-    PlayerController controller;
     Transform ghostFootL, ghostFootR, ghostThighL, ghostShinL, thighL, shinL, footL;
     Transform ghostThighR, ghostShinR, thighR, shinR, footR;
     Transform upperArmL, upperArmR, forearmL, forearmR, head;
     ConfigurableJoint hipL, hipR, kneeL, kneeR, ankleL, ankleR;
     Collider soleL, soleR;
 
-    // Ground impulse on each foot, summed over the physics step since the last FixedUpdate.
+    // Ground impulse on each foot since the last FixedUpdate.
     Vector3 leftImpulse, rightImpulse;
 
     StringBuilder rows;
@@ -38,8 +35,10 @@ public class CatchRecorder : MonoBehaviour
 
     void Awake()
     {
-        sensor = GetComponent<BalanceSensor>();
-        balance = GetComponent<BalanceController>();
+        balanceSensor = GetComponent<BalanceSensor>();
+        balanceController = GetComponent<BalanceController>();
+        playerController = GetComponent<PlayerController>();
+        playerRig = GetComponent<PlayerRig>();
 
         foreach (FootPlacement foot in GetComponentsInChildren<FootPlacement>())
             if (foot.name.StartsWith("L")) leftFoot = foot; else rightFoot = foot;
@@ -58,8 +57,6 @@ public class CatchRecorder : MonoBehaviour
         ReportContacts(leftFootBody);
         ReportContacts(rightFootBody);
 
-        rig = GetComponent<PlayerRig>();
-        controller = GetComponent<PlayerController>();
         foreach (Transform t in GetComponentsInChildren<Transform>(true))
         {
             switch (t.name)
@@ -89,49 +86,8 @@ public class CatchRecorder : MonoBehaviour
         soleR = rightFootBody.GetComponent<Collider>();
     }
 
-    // The arm's long axis (shoulder to elbow) in the heading's frame.
-    Vector3 ArmDirection(Transform upperArm) =>
-        Quaternion.Inverse(controller.Heading) * -upperArm.up;
-
-    float ArmOut(Transform upperArm, float side)
-    {
-        Vector3 d = ArmDirection(upperArm);
-        return Mathf.Atan2(side * d.x, -d.y) * Mathf.Rad2Deg;
-    }
-
-    float ArmForward(Transform upperArm)
-    {
-        Vector3 d = ArmDirection(upperArm);
-        return Mathf.Atan2(d.z, -d.y) * Mathf.Rad2Deg;
-    }
-
-    static float Elbow(Transform upperArm, Transform forearm) => Vector3.Angle(-upperArm.up, -forearm.up);
-
-    float HeadPitch()
-    {
-        Vector3 f = Quaternion.Inverse(controller.Heading) * head.forward;
-        return Mathf.Atan2(-f.y, new Vector2(f.x, f.z).magnitude) * Mathf.Rad2Deg;
-    }
-
-    float HeadRoll()
-    {
-        Vector3 u = Quaternion.Inverse(controller.Heading) * head.up;
-        return Mathf.Atan2(u.x, u.y) * Mathf.Rad2Deg;
-    }
-
-    float HeadYaw()
-    {
-        Vector3 f = Quaternion.Inverse(controller.Heading) * head.forward;
-        return Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg;
-    }
-
-    // A joint's anchor on its parent, in world space: where the physical joint actually is.
-    static Vector3 Anchor(ConfigurableJoint joint) =>
-        joint.connectedBody.transform.TransformPoint(joint.connectedAnchor);
-
-    // PhysX fixes a pair's reporting flags when the pair is created, so a foot already standing on the
-    // ground when this is added would never report. Toggling the collider rebuilds its pairs; no physics
-    // step runs in between, so the body doesn't notice.
+    // Contact reporting is fixed when a collider pair is created, so a foot already on the ground would
+    // never report. Toggling the collider rebuilds its pairs without a physics step in between.
     static void ReportContacts(Rigidbody body)
     {
         foreach (Collider c in body.GetComponentsInChildren<Collider>())
@@ -158,12 +114,11 @@ public class CatchRecorder : MonoBehaviour
                 ref readonly ContactPair pair = ref header.GetContactPair(i);
                 if (!pair.collider.CompareTag("Ground") && !pair.otherCollider.CompareTag("Ground")) continue;
 
-                // The impulse's sign depends on which body PhysX listed first. The floor is flat, so the
-                // ground's push on the foot always has +y: orient it that way.
-                Vector3 j = pair.impulseSum;
-                if (j.y < 0f) j = -j;
+                // The impulse's sign depends on pair order; on flat ground the push on the foot is +y.
+                Vector3 impulse = pair.impulseSum;
+                if (impulse.y < 0f) impulse = -impulse;
 
-                if (left) leftImpulse += j; else rightImpulse += j;
+                if (left) leftImpulse += impulse; else rightImpulse += impulse;
             }
         }
     }
@@ -193,111 +148,130 @@ public class CatchRecorder : MonoBehaviour
 
     void FixedUpdate()
     {
-        Vector3 lForce = leftImpulse / Time.fixedDeltaTime;
-        Vector3 rForce = rightImpulse / Time.fixedDeltaTime;
+        Vector3 leftForce = leftImpulse / Time.fixedDeltaTime;
+        Vector3 rightForce = rightImpulse / Time.fixedDeltaTime;
         leftImpulse = rightImpulse = Vector3.zero;
 
         if (rows == null) return;
 
-        Vector3 stance = leftFoot.IsStepping ? rightFoot.SupportPoint
-                       : rightFoot.IsStepping ? leftFoot.SupportPoint
-                       : (leftFoot.SupportPoint + rightFoot.SupportPoint) * 0.5f;
+        Vector3 com = balanceSensor.CenterOfMass;
+        Vector3 comVelocity = balanceSensor.CenterOfMassVelocity;
+        Vector3 capture = balanceSensor.CapturePoint;
+        Quaternion ghostHips = playerRig.GhostHips.rotation;
 
-        Append(Time.time - startTime, sensor.CenterOfMass.z, sensor.CenterOfMassVelocity.x,
-               sensor.CenterOfMassVelocity.z, sensor.CapturePoint.x, sensor.CapturePoint.z, stance.z,
-               Pitch(pelvis), PitchRate(pelvis), Pitch(torso), SignedAngle(balance.AnkleTrim.eulerAngles.x),
-               leftFoot.IsStepping ? 1 : 0, leftFoot.GroundPoint.z, lForce.x, lForce.y, lForce.z,
-               rightFoot.IsStepping ? 1 : 0, rightFoot.GroundPoint.z, rForce.x, rForce.y, rForce.z,
-               // How far the ghost hips sit above the real ones: the swing foot hangs this much low.
-               rig.GhostHips.position.y - (Anchor(hipL).y + Anchor(hipR).y) * 0.5f,
+        Append(Time.time - startTime, com.z, comVelocity.x, comVelocity.z, capture.x, capture.z,
+               balanceController.StanceCentre().z,
+               Pitch(pelvis.rotation), PitchRate(pelvis), Pitch(torso.rotation),
+               SignedAngle(balanceController.AnkleTrim.eulerAngles.x),
+               leftFoot.IsStepping ? 1 : 0, leftFoot.GroundPoint.z, leftForce.x, leftForce.y, leftForce.z,
+               rightFoot.IsStepping ? 1 : 0, rightFoot.GroundPoint.z, rightForce.x, rightForce.y, rightForce.z,
+               // Ghost hips above the real ones, unclamped.
+               playerRig.GhostHips.position.y - (Anchor(hipL).y + Anchor(hipR).y) * 0.5f,
                leftFoot.transform.position.y, ghostFootL.position.y, Anchor(ankleL).y, soleL.bounds.min.y,
                rightFoot.transform.position.y, ghostFootR.position.y, Anchor(ankleR).y, soleR.bounds.min.y,
-               // Left leg, ghost against physical: thigh pitch in world, knee flexion, foot pitch in world.
+               // Left leg, ghost against physical.
                Pitch(ghostThighL.rotation), Pitch(thighL.rotation),
                Quaternion.Angle(ghostThighL.rotation, ghostShinL.rotation), Quaternion.Angle(thighL.rotation, shinL.rotation),
                Pitch(ghostFootL.rotation), Pitch(footL.rotation),
                TrackingError(ghostThighL, thighL, ghostShinL, shinL, ghostFootL, footL),
                TrackingError(ghostThighR, thighR, ghostShinR, shinR, ghostFootR, footR),
-               // Where the physical ankles actually are, against lGroundZ / rGroundZ (the targets).
                Anchor(ankleL).z, Anchor(ankleR).z,
-               // Heights, for telling a fall (body down) from a stumble it recovers from.
-               sensor.CenterOfMass.y, pelvis.position.y,
-               // Signed knee flexion: negative is bent backward.
+               com.y, pelvis.position.y,
                KneeFlexion(thighL, shinL), KneeFlexion(thighR, shinR),
-               // How far the knee has turned off its hinge (twist or sideways fold), degrees, and how far
-               // the joint has pulled apart, millimetres.
                KneeOffAxis(thighL, shinL), KneeOffAxis(thighR, shinR),
                JointGap(kneeL) * 1000f, JointGap(kneeR) * 1000f,
-               // Heading in degrees, + turned right: the body, each physical foot, and each foot target.
                Yaw(pelvis.rotation), Yaw(footL.rotation), Yaw(footR.rotation),
                Yaw(leftFoot.transform.rotation), Yaw(rightFoot.transform.rotation),
-               // Ankle roll trim (+ lifts the right edge) and the sideways position it acts on.
-               SignedAngle(balance.AnkleTrim.eulerAngles.z), sensor.CenterOfMass.x,
-               // World yaw rates, degrees/s, + turning right: where a turn starts and how it travels.
+               SignedAngle(balanceController.AnkleTrim.eulerAngles.z), com.x,
                YawRate(pelvis), YawRate(torso), YawRate(thighL), YawRate(shinL), YawRate(leftFootBody),
                YawRate(rightFootBody),
-               // Yaw angular momentum about the centre of mass, kg·m²/s, + turning right: the whole body,
-               // then the trunk and each leg. Only an outside torque (the ground, the upright torque)
-               // changes the whole; a trunk turning while the whole holds is a reaction to a leg.
-               YawMomentum(sensor.CenterOfMass, pelvis, torso, thighL, shinL, footL, thighR, shinR, footR),
-               YawMomentum(sensor.CenterOfMass, pelvis, torso),
-               YawMomentum(sensor.CenterOfMass, thighL, shinL, footL),
-               YawMomentum(sensor.CenterOfMass, thighR, shinR, footR),
-               balance.UprightYawTorque,
-               // Twist about each joint's Y (the leg's long axis), degrees: where it is, and where the
-               // drive is pulling it.
-               Twist(JointRotation(hipL)), Twist(Quaternion.Inverse(hipL.targetRotation)),
-               Twist(JointRotation(hipR)), Twist(Quaternion.Inverse(hipR.targetRotation)),
-               Twist(JointRotation(ankleL)), Twist(Quaternion.Inverse(ankleL.targetRotation)),
-               Twist(JointRotation(ankleR)), Twist(Quaternion.Inverse(ankleR.targetRotation)),
-               // The same twist on the ghost, thigh against ghost hips: what the IK solved.
-               Twist(Quaternion.Inverse(rig.GhostHips.rotation) * ghostThighL.rotation),
-               Twist(Quaternion.Inverse(rig.GhostHips.rotation) * ghostThighR.rotation),
-               // The feet sideways, against comX / captureX, and the drunk sway (world, heading-scaled).
+               // Whole body, trunk, each leg. Only an outside torque changes the whole.
+               YawMomentum(com, pelvis, torso, thighL, shinL, footL, thighR, shinR, footR),
+               YawMomentum(com, pelvis, torso),
+               YawMomentum(com, thighL, shinL, footL),
+               YawMomentum(com, thighR, shinR, footR),
+               balanceController.UprightYawTorque,
+               // Twist about each joint's Y: actual, then the drive's target.
+               JointRotation(hipL).AngleAboutY(), Quaternion.Inverse(hipL.targetRotation).AngleAboutY(),
+               JointRotation(hipR).AngleAboutY(), Quaternion.Inverse(hipR.targetRotation).AngleAboutY(),
+               JointRotation(ankleL).AngleAboutY(), Quaternion.Inverse(ankleL.targetRotation).AngleAboutY(),
+               JointRotation(ankleR).AngleAboutY(), Quaternion.Inverse(ankleR.targetRotation).AngleAboutY(),
+               // What the IK solved: ghost thigh twist against the ghost hips.
+               (Quaternion.Inverse(ghostHips) * ghostThighL.rotation).AngleAboutY(),
+               (Quaternion.Inverse(ghostHips) * ghostThighR.rotation).AngleAboutY(),
                leftFoot.GroundPoint.x, rightFoot.GroundPoint.x,
-               controller.SwayWorld.x, controller.SwayWorld.z,
-               // Pelvis tilt to the side, degrees, + leaning toward world +X.
+               playerController.SwayWorld.x, playerController.SwayWorld.z,
                Roll(pelvis),
-               // The breach fall: momentum (heading frame, resultant units), the ring, the breach 0–1.
-               controller.Momentum.x, controller.Momentum.y, controller.FallLimit, controller.BreachFraction,
-               controller.IsFallen ? 1 : 0,
-               // The pelvis's whole tilt from upright, degrees: what PlayerController's fallTilt reads.
-               Vector3.Angle(pelvis.rotation * Vector3.up, Vector3.up),
-               // What each breach source is charging, breach per second.
-               controller.MomentumCharge, controller.TiltCharge, controller.DropCharge,
-               // The chest's tilt to the side, degrees, + toward world +X, against pelvisRoll.
+               playerController.Momentum.x, playerController.Momentum.y, playerController.MomentumLimit,
+               playerController.FallMeterFraction, playerController.IsFallen ? 1 : 0,
+               playerController.PelvisTilt,
+               playerController.MomentumCharge, playerController.TiltCharge, playerController.DropCharge,
                Roll(torso),
-               // Whether each foot's step is a crossover.
                leftFoot.IsCrossing ? 1 : 0, rightFoot.IsCrossing ? 1 : 0,
-               // Each arm in the heading's frame, degrees: out to its own side from hanging, forward from
-               // hanging, and the elbow's bend.
-               ArmOut(upperArmL, -1f), ArmForward(upperArmL), Elbow(upperArmL, forearmL),
-               ArmOut(upperArmR, 1f), ArmForward(upperArmR), Elbow(upperArmR, forearmR),
-               // The head in the heading's frame, degrees: nodding forward, tipping right, turned right.
+               ArmOut(upperArmL, -1f), ArmForward(upperArmL), ElbowBend(upperArmL, forearmL),
+               ArmOut(upperArmR, 1f), ArmForward(upperArmR), ElbowBend(upperArmR, forearmR),
                HeadPitch(), HeadRoll(), HeadYaw());
 
         if (Time.time - startTime >= duration)
             Write();
     }
 
-    // Mean angle (degrees) between each ghost bone and the physical body it drives: whether a problem is
-    // in the pose being asked for or in the drives' ability to reach it. Includes the ankle trim, which the
-    // ghost doesn't know about, so a planted foot reads a few degrees even when it's doing its job.
+    // --- Measurements, degrees unless noted ---
+
+    // Upper arm's long axis in the heading's frame.
+    Vector3 ArmDirection(Transform upperArm) => ToHeadingFrame(-upperArm.up);
+
+    float ArmOut(Transform upperArm, float side)
+    {
+        Vector3 d = ArmDirection(upperArm);
+        return Mathf.Atan2(side * d.x, -d.y) * Mathf.Rad2Deg;
+    }
+
+    float ArmForward(Transform upperArm)
+    {
+        Vector3 d = ArmDirection(upperArm);
+        return Mathf.Atan2(d.z, -d.y) * Mathf.Rad2Deg;
+    }
+
+    static float ElbowBend(Transform upperArm, Transform forearm) => Vector3.Angle(-upperArm.up, -forearm.up);
+
+    float HeadPitch()
+    {
+        Vector3 f = ToHeadingFrame(head.forward);
+        return Mathf.Atan2(-f.y, new Vector2(f.x, f.z).magnitude) * Mathf.Rad2Deg;
+    }
+
+    float HeadRoll()
+    {
+        Vector3 u = ToHeadingFrame(head.up);
+        return Mathf.Atan2(u.x, u.y) * Mathf.Rad2Deg;
+    }
+
+    float HeadYaw()
+    {
+        Vector3 f = ToHeadingFrame(head.forward);
+        return Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg;
+    }
+
+    Vector3 ToHeadingFrame(Vector3 world) => Quaternion.Inverse(playerController.Heading) * world;
+
+    // A joint's world position, from its connected body's side.
+    static Vector3 Anchor(ConfigurableJoint joint) =>
+        joint.connectedBody.transform.TransformPoint(joint.connectedAnchor);
+
+    // Mean angle between each ghost bone and its physical body. Includes the ankle trim, which the ghost
+    // doesn't know about.
     static float TrackingError(Transform ghostThigh, Transform thigh, Transform ghostShin, Transform shin,
                                Transform ghostFoot, Transform foot) =>
         (Quaternion.Angle(ghostThigh.rotation, thigh.rotation) +
          Quaternion.Angle(ghostShin.rotation, shin.rotation) +
          Quaternion.Angle(ghostFoot.rotation, foot.rotation)) / 3f;
 
-    // Degrees of knee bend about the knee axis, + forward (normal), − backward. Twist about X only.
-    static float KneeFlexion(Transform thigh, Transform shin)
-    {
-        Quaternion local = Quaternion.Inverse(thigh.rotation) * shin.rotation;
-        if (local.w < 0f) local = new Quaternion(-local.x, -local.y, -local.z, -local.w);
-        return 2f * Mathf.Atan2(local.x, local.w) * Mathf.Rad2Deg;
-    }
+    // + bent forward, − hyperextended.
+    static float KneeFlexion(Transform thigh, Transform shin) =>
+        (Quaternion.Inverse(thigh.rotation) * shin.rotation).AngleAboutX();
 
-    // The rest of the knee's rotation once its bend about X is taken out.
+    // The knee's rotation left once its bend about X is removed: twist and sideways fold.
     static float KneeOffAxis(Transform thigh, Transform shin)
     {
         Quaternion local = Quaternion.Inverse(thigh.rotation) * shin.rotation;
@@ -305,31 +279,32 @@ public class CatchRecorder : MonoBehaviour
         return Quaternion.Angle(Quaternion.identity, local * Quaternion.Inverse(bend));
     }
 
-    // Distance between a joint's anchor on its own body and on its connected body.
+    // Distance the joint has pulled apart, m.
     static float JointGap(ConfigurableJoint joint) =>
-        Vector3.Distance(joint.transform.TransformPoint(joint.anchor),
-                         joint.connectedBody.transform.TransformPoint(joint.connectedAnchor));
+        Vector3.Distance(joint.transform.TransformPoint(joint.anchor), Anchor(joint));
 
-    // Forward pitch in degrees: + leans forward.
-    static float Pitch(Rigidbody body) => Pitch(body.rotation);
-    static float Roll(Rigidbody body) => Mathf.Asin(Mathf.Clamp((body.rotation * Vector3.up).x, -1f, 1f)) * Mathf.Rad2Deg;
+    // A joint's body relative to its connected body, from the physics poses.
+    static Quaternion JointRotation(ConfigurableJoint joint) =>
+        Quaternion.Inverse(joint.connectedBody.rotation) * joint.GetComponent<Rigidbody>().rotation;
+
+    // + leaning forward.
     static float Pitch(Quaternion rotation) => SignedAngle(rotation.eulerAngles.x);
+    // + leaning toward world +X.
+    static float Roll(Rigidbody body) => Mathf.Asin(Mathf.Clamp((body.rotation * Vector3.up).x, -1f, 1f)) * Mathf.Rad2Deg;
+    // + turned right.
     static float Yaw(Quaternion rotation)
     {
         Vector3 forward = rotation * Vector3.forward;
         return Mathf.Atan2(forward.x, forward.z) * Mathf.Rad2Deg;
     }
-    // A joint's body relative to its connected body: what the drive's target is compared against.
-    static Quaternion JointRotation(ConfigurableJoint joint) =>
-        Quaternion.Inverse(joint.connectedBody.rotation) * joint.GetComponent<Rigidbody>().rotation;
 
-    static float Twist(Quaternion q)
-    {
-        if (q.w < 0f) q = new Quaternion(-q.x, -q.y, -q.z, -q.w);
-        return 2f * Mathf.Atan2(q.y, q.w) * Mathf.Rad2Deg;
-    }
+    // Degrees per second.
+    static float YawRate(Rigidbody body) => body.angularVelocity.y * Mathf.Rad2Deg;
+    static float YawRate(Transform body) => YawRate(body.GetComponent<Rigidbody>());
+    static float PitchRate(Rigidbody body) => body.angularVelocity.x * Mathf.Rad2Deg;
+    static float SignedAngle(float degrees) => Mathf.DeltaAngle(0f, degrees);
 
-    // Orbital (m · r × v) plus spin (I ω) about the vertical through `about`.
+    // Orbital (m · r × v) plus spin (I ω) about the vertical through `about`, kg·m²/s, + turning right.
     static float YawMomentum(Vector3 about, params Component[] bodies)
     {
         float total = 0f;
@@ -345,11 +320,6 @@ public class CatchRecorder : MonoBehaviour
         }
         return total;
     }
-
-    static float YawRate(Rigidbody body) => body.angularVelocity.y * Mathf.Rad2Deg;
-    static float YawRate(Transform body) => YawRate(body.GetComponent<Rigidbody>());
-    static float PitchRate(Rigidbody body) => body.angularVelocity.x * Mathf.Rad2Deg;
-    static float SignedAngle(float degrees) => Mathf.DeltaAngle(0f, degrees);
 
     void Append(params float[] values)
     {
