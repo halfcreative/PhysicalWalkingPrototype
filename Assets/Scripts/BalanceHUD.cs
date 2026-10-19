@@ -39,8 +39,9 @@ public class BalanceHUD : MonoBehaviour
     PlayerController playerController;
     BalanceController balanceController;
     float flashUntil;
-    // Tinted per draw via GUI.color; lines are this texture drawn into a rotated matrix.
+    // Both white, tinted per draw via GUI.color. Lines are whiteTexture drawn into a rotated matrix.
     Texture2D whiteTexture;
+    Texture2D discTexture;
     GUIStyle labelStyle;
 
     void Awake()
@@ -50,6 +51,24 @@ public class BalanceHUD : MonoBehaviour
         whiteTexture = new Texture2D(1, 1);
         whiteTexture.SetPixel(0, 0, Color.white);
         whiteTexture.Apply();
+        discTexture = CreateDiscTexture(128);
+    }
+
+    // A white disc with a one-pixel soft edge, filling the texture.
+    static Texture2D CreateDiscTexture(int size)
+    {
+        Texture2D texture = new(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        float radius = size * 0.5f;
+        Color[] pixels = new Color[size * size];
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float distance = new Vector2(x + 0.5f - radius, y + 0.5f - radius).magnitude;
+            pixels[y * size + x] = new Color(1f, 1f, 1f, Mathf.Clamp01(radius - distance));
+        }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        return texture;
     }
 
     void OnEnable()
@@ -65,6 +84,7 @@ public class BalanceHUD : MonoBehaviour
     void OnDestroy()
     {
         if (whiteTexture != null) Destroy(whiteTexture);
+        if (discTexture != null) Destroy(discTexture);
     }
 
     void OnFell() => flashUntil = Time.time + flashDuration;
@@ -196,10 +216,9 @@ public class BalanceHUD : MonoBehaviour
         }
     }
 
-    // Filled with concentric rings.
     void DrawDisc(Vector2 center, float radius, Color color)
     {
-        for (float r = radius; r > 0f; r -= ringThickness)
-            DrawRing(center, r, color);
+        GUI.color = color;
+        GUI.DrawTexture(new Rect(center.x - radius, center.y - radius, radius * 2f, radius * 2f), discTexture);
     }
 }

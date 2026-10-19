@@ -198,7 +198,7 @@ public class PlayerController : MonoBehaviour
     {
         float dt = Time.fixedDeltaTime;
 
-        headingYaw += pendingMouseX * mouseSensitivity;
+        headingYaw = Mathf.Repeat(headingYaw + pendingMouseX * mouseSensitivity, 360f);
         pendingMouseX = 0f;
 
         UpdateMomentum(dt);

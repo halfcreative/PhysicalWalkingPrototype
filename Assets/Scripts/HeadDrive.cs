@@ -31,6 +31,8 @@ public class HeadDrive : MonoBehaviour
     float maxForce;
     // Inertia about the neck, kg·m², for turning a damping ratio into a damper.
     float headInertia;
+    // The drive last written; NaN forces the first write.
+    float appliedSpring = float.NaN, appliedDamper = float.NaN;
 
     void Awake()
     {
@@ -60,12 +62,20 @@ public class HeadDrive : MonoBehaviour
         float spring = Mathf.Lerp(soberSpring, drunkSpring, drunk);
         float dampingRatio = Mathf.Lerp(soberDamping, drunkDamping, drunk);
         if (playerController.IsFallen) spring *= playerController.FallenStiffness;
-        neck.slerpDrive = new JointDrive
+        float damper = 2f * dampingRatio * Mathf.Sqrt(spring * headInertia);
+
+        // Written only on change: assigning slerpDrive wakes the body.
+        if (!Mathf.Approximately(spring, appliedSpring) || !Mathf.Approximately(damper, appliedDamper))
         {
-            positionSpring = spring,
-            positionDamper = 2f * dampingRatio * Mathf.Sqrt(spring * headInertia),
-            maximumForce = maxForce,
-        };
+            appliedSpring = spring;
+            appliedDamper = damper;
+            neck.slerpDrive = new JointDrive
+            {
+                positionSpring = spring,
+                positionDamper = damper,
+                maximumForce = maxForce,
+            };
+        }
 
         Quaternion levelGaze = playerController.Heading * restInHeading;
         Quaternion onChest = torso.rotation * neckStart;

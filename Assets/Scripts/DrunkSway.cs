@@ -12,6 +12,7 @@ public class DrunkSway
     const float MagnitudeNoiseRow = 100f;
 
     float angleDegrees;    // 0 = straight forward
+    // Not wrapped: wrapping would jump the sway, and Reset restarts it on every fall.
     float noiseTime;
 
     public Vector2 Current { get; private set; }
@@ -38,7 +39,7 @@ public class DrunkSway
 
         // Signed, so the direction wanders and reverses rather than spinning steadily.
         float turn = Mathf.PerlinNoise(noiseTime * TurnNoiseFrequency, 0f) * 2f - 1f;
-        angleDegrees += turn * rotationRate * dt;
+        angleDegrees = Mathf.Repeat(angleDegrees + turn * rotationRate * dt, 360f);
 
         // Unsigned: the sway swells and fades but never flips; flipping is the direction's job.
         float swell = Mathf.PerlinNoise(noiseTime * MagnitudeNoiseFrequency, MagnitudeNoiseRow);
