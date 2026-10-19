@@ -9,13 +9,18 @@ public struct CharacterInput : INetworkSerializable
     public Vector2 Move;
     // Degrees about world up.
     public float HeadingYaw;
-    // Camera pitch, degrees, + looking down.
+    // Camera pitch, degrees, + looking down. A reaching arm aims along it.
     public float LookPitch;
+    // Held: that hand reaches along the aim and grips what it touches.
+    public bool GrabLeft;
+    public bool GrabRight;
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
     {
         serializer.SerializeValue(ref Move);
         serializer.SerializeValue(ref HeadingYaw);
         serializer.SerializeValue(ref LookPitch);
+        serializer.SerializeValue(ref GrabLeft);
+        serializer.SerializeValue(ref GrabRight);
     }
 }

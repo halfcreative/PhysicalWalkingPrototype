@@ -1123,6 +1123,8 @@ GameObject:
   - component: {fileID: 2941005310332742330}
   - component: {fileID: 2869094902904314273}
   - component: {fileID: 6231117991899040431}
+  - component: {fileID: 4618147978341032892}
+  - component: {fileID: 2084025618374337299}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -1417,6 +1419,8 @@ MonoBehaviour:
   counterResponse: 6
   maxRaise: 100
   elbowBendPerRaise: 0.3
+  reachStiffness: 4
+  reachElbowBend: 10
 --- !u!114 &2949891021897801324
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1446,6 +1450,8 @@ MonoBehaviour:
   counterResponse: 6
   maxRaise: 100
   elbowBendPerRaise: 0.3
+  reachStiffness: 4
+  reachElbowBend: 10
 --- !u!114 &3603115416998106395
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1492,6 +1498,58 @@ MonoBehaviour:
       m_Processors: 
       m_Groups: 
       m_Action: Reset
+      m_Flags: 0
+    m_Flags: 0
+    m_Priority: 0
+  grabLeftAction:
+    m_Name: Grab Left
+    m_Type: 1
+    m_ExpectedControlType: 
+    m_Id: 5e09d6d2-2117-4b88-b764-a96312a7e205
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: de322730-5b89-4f87-896a-258e6840f853
+      m_Path: <Mouse>/leftButton
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Grab Left
+      m_Flags: 0
+    - m_Name: 
+      m_Id: 3581df4e-6531-49b9-9f35-f3345ae63b11
+      m_Path: <Gamepad>/leftTrigger
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Grab Left
+      m_Flags: 0
+    m_Flags: 0
+    m_Priority: 0
+  grabRightAction:
+    m_Name: Grab Right
+    m_Type: 1
+    m_ExpectedControlType: 
+    m_Id: 21251202-0c97-4b57-8a13-1d1b5d4a37e3
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: 2ad24e1d-2cbe-4a13-a101-cb4f8338e1f8
+      m_Path: <Mouse>/rightButton
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Grab Right
+      m_Flags: 0
+    - m_Name: 
+      m_Id: a2831d6b-9b08-4eaa-8954-5bc8ef72191c
+      m_Path: <Gamepad>/rightTrigger
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Grab Right
       m_Flags: 0
     m_Flags: 0
     m_Priority: 0
@@ -1568,6 +1626,8 @@ MonoBehaviour:
   - {fileID: 984474447212924295}
   - {fileID: 2939301174023753430}
   - {fileID: 3928006529086975609}
+  - {fileID: 4618147978341032892}
+  - {fileID: 2084025618374337299}
 --- !u!114 &6231117991899040431
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1583,6 +1643,40 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   baseDelayTicks: 1
   jitterMultiplier: 2
+--- !u!114 &4618147978341032892
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2498397846915829608}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6515c9b261786fc30975b59b2a0d42a3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HandGrab
+  playerController: {fileID: 8618065122149107637}
+  forearm: {fileID: 2358459775131459672}
+  side: -1
+  gripRadius: 0.08
+  breakForce: 1500
+--- !u!114 &2084025618374337299
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2498397846915829608}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6515c9b261786fc30975b59b2a0d42a3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HandGrab
+  playerController: {fileID: 8618065122149107637}
+  forearm: {fileID: 85976674999693063}
+  side: 1
+  gripRadius: 0.08
+  breakForce: 1500
 --- !u!1 &2802489676217664911
 GameObject:
   m_ObjectHideFlags: 0

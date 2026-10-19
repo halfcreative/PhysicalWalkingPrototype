@@ -2,6 +2,7 @@ using UnityEngine;
 
 // One per arm, and the only writer of its shoulder and elbow targets. The arm hangs in the heading's frame
 // (gravity keeps it down while the chest leans), swings against the stride, and is thrown about by the sway.
+// While its grab is held, it reaches along the camera's aim instead, on a stiffer drive (see HandGrab).
 //
 // The upper arm is authored turned ±90° about its length, so its joint's X limit is abduction.
 [DefaultExecutionOrder(10)]   // after FootPlacement (0) has moved the feet
@@ -44,12 +45,18 @@ public class ArmDrive : MonoBehaviour
     // Extra elbow bend per degree of raise.
     [SerializeField] float elbowBendPerRaise = 0.3f;
 
+    [Header("Reach")]
+    // Drive stiffness while reaching, as a multiple of the authored drive, so the arm can hold weight.
+    [SerializeField] float reachStiffness = 4f;
+    // Elbow bend while reaching, degrees.
+    [SerializeField] float reachElbowBend = 10f;
+
     Transform torso, upperArm, forearm;
     Quaternion shoulderStart, elbowStart;
     // Each segment's rest rotation in the spawn heading's frame.
     Quaternion upperArmRest, forearmRest;
     JointDrive shoulderDrive, elbowDrive;
-    bool isLimp;
+    float appliedStiffness = 1f;
 
     float strideSwing;
     Vector2 smoothedSway;
@@ -82,12 +89,16 @@ public class ArmDrive : MonoBehaviour
     void FixedUpdate()
     {
         bool fallen = playerController.IsFallen;
-        if (fallen != isLimp)
+        CharacterInput input = playerController.CurrentInput;
+        bool reaching = !fallen && (side < 0f ? input.GrabLeft : input.GrabRight);
+
+        // Written only on change: assigning slerpDrive wakes the body.
+        float stiffness = fallen ? playerController.FallenStiffness : reaching ? reachStiffness : 1f;
+        if (!Mathf.Approximately(stiffness, appliedStiffness))
         {
-            isLimp = fallen;
-            float scale = fallen ? playerController.FallenStiffness : 1f;
-            shoulder.slerpDrive = shoulderDrive.Scaled(scale);
-            elbow.slerpDrive = elbowDrive.Scaled(scale);
+            appliedStiffness = stiffness;
+            shoulder.slerpDrive = shoulderDrive.Scaled(stiffness);
+            elbow.slerpDrive = elbowDrive.Scaled(stiffness);
         }
 
         float dt = Time.fixedDeltaTime;
@@ -105,12 +116,24 @@ public class ArmDrive : MonoBehaviour
         smoothedSway = Vector2.Lerp(smoothedSway, fallen ? Vector2.zero : playerController.Sway,
                                     Smoothing.Factor(counterResponse, dt));
 
-        // Positive when the sway pushes toward this arm's side.
-        float towardThisSide = side * smoothedSway.x;
-        float raise = Mathf.Min(maxRaise, raiseScale * Mathf.Max(0f, towardThisSide)
-                                        + counterRaiseScale * Mathf.Max(0f, -towardThisSide));
-        float abduction = restSplay + raise;
-        float pitch = strideSwing + reachScale * smoothedSway.y;
+        float abduction, pitch, bend;
+        if (reaching)
+        {
+            // From hanging, swung forward to the aim: level at a level look, down when looking down.
+            pitch = Mathf.Clamp(90f - input.LookPitch, 0f, 170f);
+            abduction = 0f;
+            bend = reachElbowBend;
+        }
+        else
+        {
+            // Positive when the sway pushes toward this arm's side.
+            float towardThisSide = side * smoothedSway.x;
+            float raise = Mathf.Min(maxRaise, raiseScale * Mathf.Max(0f, towardThisSide)
+                                            + counterRaiseScale * Mathf.Max(0f, -towardThisSide));
+            abduction = restSplay + raise;
+            pitch = strideSwing + reachScale * smoothedSway.y;
+            bend = restElbowBend + elbowBendPerRaise * raise;
+        }
 
         // Out to this side about the heading's forward, then fore/aft about its right.
         Quaternion upperArmTarget = Quaternion.AngleAxis(-pitch, right)
@@ -119,7 +142,6 @@ public class ArmDrive : MonoBehaviour
         shoulder.SetTargetWorldRotation(upperArmTarget, shoulderStart, torso);
 
         // The elbow bends relative to where the upper arm actually is, so the forearm trails it.
-        float bend = restElbowBend + elbowBendPerRaise * raise;
         Quaternion upperArmOffset = upperArm.rotation * Quaternion.Inverse(heading * upperArmRest);
         Quaternion forearmTarget = upperArmOffset * Quaternion.AngleAxis(-bend, right) * heading * forearmRest;
         elbow.SetTargetWorldRotation(forearmTarget, elbowStart, upperArm);
