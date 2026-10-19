@@ -164,6 +164,9 @@ public class PlayerController : MonoBehaviour
 
         ResetSway();
         headingYaw = spawnYaw = transform.eulerAngles.y;
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
     public float DrunkAmount => drunkAmount;
