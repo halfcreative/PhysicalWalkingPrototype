@@ -148,7 +148,7 @@ public class BalanceHUD : MonoBehaviour
         DrawFactorRow(1, $"momentum {readout.Momentum.magnitude:F2}/{readout.MomentumLimit:F2}",
                       readout.MomentumCharge, momentumColor);
         DrawFactorRow(2, $"tilt {readout.PelvisTilt:F0}°", readout.TiltCharge, tiltColor);
-        DrawFactorRow(3, $"drop CoM {readout.CenterOfMassHeight:F2} m", readout.DropCharge, dropColor);
+        DrawFactorRow(3, $"drop CoM {readout.HeightAboveSupport:F2} m up", readout.DropCharge, dropColor);
         // Not a source: how hard the input pushes against the lean.
         DrawFactorRow(4, $"counter-steer {readout.CounterSteer * 100f:F0}%", readout.CounterSteer, inputColor);
 

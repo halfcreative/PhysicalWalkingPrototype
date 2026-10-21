@@ -9,8 +9,6 @@ public class BalanceController : MonoBehaviour
     [Header("References")]
     [SerializeField] BalanceSensor balanceSensor;
     [SerializeField] Rigidbody pelvis;
-    [SerializeField] FootPlacement leftFoot;
-    [SerializeField] FootPlacement rightFoot;
     [SerializeField] PlayerController playerController;
     [SerializeField] TorsoLean torsoLean;
 
@@ -75,7 +73,7 @@ public class BalanceController : MonoBehaviour
         Vector3 right = (pelvis.rotation * Vector3.right).Flat().normalized;
 
         // Toes down (+X) pushes a forward capture point back. +Z lifts the foot's right edge, so a capture
-        // point off to the right wants −Z. Uses last tick's stance: FootPlacement runs later.
+        // point off to the right wants −Z.
         Vector3 error = balanceSensor.CapturePoint - BalanceTarget();
         float pitch = Mathf.Clamp(pitchTrimGain * Vector3.Dot(error, forward), -maxPitchTrim, maxPitchTrim);
         float roll = Mathf.Clamp(-rollTrimGain * Vector3.Dot(error, right), -maxRollTrim, maxRollTrim);
@@ -84,17 +82,9 @@ public class BalanceController : MonoBehaviour
         HoldPelvisUpright(forward, right);
     }
 
-    // The planted soles: their midpoint while both are down, otherwise the one carrying the body.
-    public Vector3 StanceCentre()
-    {
-        if (leftFoot.IsStepping) return rightFoot.SupportPoint;
-        if (rightFoot.IsStepping) return leftFoot.SupportPoint;
-        return (leftFoot.SupportPoint + rightFoot.SupportPoint) * 0.5f;
-    }
-
-    // Where the body holds its capture point: over the stance, moved by the net force and the hip shift.
+    // Where the body holds its capture point: over the support, moved by the net force and the hip shift.
     public Vector3 BalanceTarget() =>
-        StanceCentre() + playerController.NetForceWorld * leanDistance + torsoLean.HipShift;
+        balanceSensor.SupportCentre + playerController.LeanForceWorld * leanDistance + torsoLean.HipShift;
 
     // A PD torque on the pelvis toward PelvisUpTarget and the heading. The pelvis is the root body, so
     // this is the one place AddTorque is used; everything behind a joint goes through its drive.

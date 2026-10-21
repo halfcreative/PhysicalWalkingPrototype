@@ -143,7 +143,8 @@ public class CatchRecorder : MonoBehaviour
             "rAnkleTwist,rAnkleTwistTarget,lGhostHipTwist,rGhostHipTwist," +
             "lGroundX,rGroundX,swayX,swayZ,pelvisRoll,momentumX,momentumY,fallLimit,breach,fallen,pelvisTilt," +
             "momentumCharge,tiltCharge,dropCharge,torsoRoll,lCrossing,rCrossing," +
-            "lArmOut,lArmFwd,lElbow,rArmOut,rArmFwd,rElbow,headPitch,headRoll,headYaw\n");
+            "lArmOut,lArmFwd,lElbow,rArmOut,rArmFwd,rElbow,headPitch,headRoll,headYaw," +
+            "lHipX,lHipXTarget,rHipX,rHipXTarget,lKneeX,lKneeXTarget,rKneeX,rKneeXTarget,riseAhead,riseDistance\n");
     }
 
     void FixedUpdate()
@@ -160,7 +161,7 @@ public class CatchRecorder : MonoBehaviour
         Quaternion ghostHips = playerRig.GhostHips.rotation;
 
         Append(Time.time - startTime, com.z, comVelocity.x, comVelocity.z, capture.x, capture.z,
-               balanceController.StanceCentre().z,
+               balanceSensor.SupportCentre.z,
                Pitch(pelvis.rotation), PitchRate(pelvis), Pitch(torso.rotation),
                SignedAngle(balanceController.AnkleTrim.eulerAngles.x),
                leftFoot.IsStepping ? 1 : 0, leftFoot.GroundPoint.z, leftForce.x, leftForce.y, leftForce.z,
@@ -210,7 +211,14 @@ public class CatchRecorder : MonoBehaviour
                leftFoot.IsCrossing ? 1 : 0, rightFoot.IsCrossing ? 1 : 0,
                ArmOut(upperArmL, -1f), ArmForward(upperArmL), ElbowBend(upperArmL, forearmL),
                ArmOut(upperArmR, 1f), ArmForward(upperArmR), ElbowBend(upperArmR, forearmR),
-               HeadPitch(), HeadRoll(), HeadYaw());
+               HeadPitch(), HeadRoll(), HeadYaw(),
+               // Hip and knee about their hinge (X) axis in joint space, degrees: where each is, and where its
+               // drive is pulling it. The same space as the joint's X limits.
+               JointRotation(hipL).AngleAboutX(), Quaternion.Inverse(hipL.targetRotation).AngleAboutX(),
+               JointRotation(hipR).AngleAboutX(), Quaternion.Inverse(hipR.targetRotation).AngleAboutX(),
+               JointRotation(kneeL).AngleAboutX(), Quaternion.Inverse(kneeL.targetRotation).AngleAboutX(),
+               JointRotation(kneeR).AngleAboutX(), Quaternion.Inverse(kneeR.targetRotation).AngleAboutX(),
+               balanceSensor.RiseAhead, Mathf.Min(balanceSensor.RiseDistance, 9f));
 
         if (Time.time - startTime >= duration)
             Write();

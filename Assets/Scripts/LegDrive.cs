@@ -9,8 +9,6 @@ public class LegDrive : MonoBehaviour
 {
     // Least knee bend a target may ask for, degrees; see KneeTarget.
     const float MinKneeFlexion = 5f;
-    // Peak toe-up of a swinging foot, degrees.
-    const float SwingToeLift = 15f;
     // Cap on a feed-forward velocity target, rad/s. Real swings peak around 5.
     const float MaxFeedForward = 12f;
 
@@ -29,6 +27,9 @@ public class LegDrive : MonoBehaviour
     [Header("Swing Feed-Forward")]
     // Feeds the ghost's angular velocity to the drives so their dampers don't drag the swing. 0 is off.
     [SerializeField, Range(0f, 1.5f)] float swingFeedForward = 1f;
+    // Peak toe-up of a swinging foot, degrees, at mid-swing. The real foot hangs toe-down behind its target,
+    // so this is what keeps the toe off the ground and clear of step edges.
+    [SerializeField, Range(0f, 45f)] float swingToeLift = 15f;
 
     [Header("Soft Landing")]
     // Hip and knee stiffness at touchdown, ramping to full over landingRampTime, so a catch doesn't rebound.
@@ -129,7 +130,7 @@ public class LegDrive : MonoBehaviour
         // Planted: the balance trim, about the foot's own axes. Swinging: toes up, peaking mid-swing, so
         // the toe clears the ground.
         Quaternion footAdjustment = swinging
-            ? Quaternion.Euler(-SwingToeLift * Mathf.Sin(Mathf.PI * footPlacement.SwingProgress), 0f, 0f)
+            ? Quaternion.Euler(-swingToeLift * Mathf.Sin(Mathf.PI * footPlacement.SwingProgress), 0f, 0f)
             : balanceController.AnkleTrim;
         Quaternion footTarget = ghostFoot.rotation * footAdjustment;
 

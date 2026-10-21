@@ -36,8 +36,8 @@ public class SwayBench : MonoBehaviour
             playerController.ResetCharacter();
             yield return new WaitForSeconds(SettleTime);
 
-            if (balanceSensor.CenterOfMass.y < 0.75f)
-                Debug.LogWarning($"SwayBench: seed {seed} starts already down (CoM {balanceSensor.CenterOfMass.y:F2} m)");
+            if (balanceSensor.HeightAboveSupport < 0.75f)
+                Debug.LogWarning($"SwayBench: seed {seed} starts already down (CoM {balanceSensor.HeightAboveSupport:F2} m above support)");
 
             playerController.SetDrunkAmount(drunkAmount);
             playerController.ResetSway(seed);

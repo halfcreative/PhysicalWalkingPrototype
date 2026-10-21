@@ -16,8 +16,6 @@ public class ResponseProbe : MonoBehaviour
 {
     const float SettleTime = 1.5f;
     const float Timeout = 2f;
-    // Below this centre-of-mass height the character is down and gets reset before the next trial.
-    const float DownHeight = 0.6f;
 
     public bool IsRunning { get; private set; }
     public string Summary { get; private set; }
@@ -57,7 +55,6 @@ public class ResponseProbe : MonoBehaviour
             if (player.IsOwner) localPlayer = player;
 
         PlayerController playerController = localPlayer.GetComponent<PlayerController>();
-        BalanceSensor balanceSensor = localPlayer.GetComponent<BalanceSensor>();
         LocalPlayerInput localInput = localPlayer.GetComponent<LocalPlayerInput>();
         Transform pelvis = localPlayer.transform.Find("Pelvis");
         bool inputWasEnabled = localInput.enabled;
@@ -72,7 +69,8 @@ public class ResponseProbe : MonoBehaviour
             playerController.SetInput(new CharacterInput { HeadingYaw = yaw });
             yield return new WaitForSecondsRealtime(SettleTime);
 
-            if (balanceSensor.InterpolatedCenterOfMass().y < DownHeight)
+            // Down: reset before the next trial.
+            if (localPlayer.IsFallen)
             {
                 resets++;
                 localInput.ResetHandler?.Invoke();
