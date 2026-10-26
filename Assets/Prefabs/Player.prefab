@@ -1331,10 +1331,10 @@ MonoBehaviour:
   maxSideSpeed: 0.6
   accelerationTime: 0.8
   moveInputResponse: 12
-  stepSpeedFactor: 0.4
+  stepApproachSpeed: 0.7
   stepSlowFrom: 0.05
   stepSlowFull: 0.15
-  stepUpStopFrom: 0.2
+  stepUpStopFrom: 0.21
   stepUpStandoffPerRise: 0.9
   stepUpBraking: 0.5
   drunkMomentumLimit: 0.7
@@ -2629,7 +2629,7 @@ MonoBehaviour:
   stepDownDescendFrom: 0.5
   stepUpForwardFrom: 0.25
   stepUpMaxHold: 0.6
-  stepUpTimePerMetre: 1
+  stepUpTimePerMetre: 0.4
   stepUpClearance: 0.08
   autoStep: 1
   logSteps: 0
@@ -4952,7 +4952,7 @@ MonoBehaviour:
   stepDownDescendFrom: 0.5
   stepUpForwardFrom: 0.25
   stepUpMaxHold: 0.6
-  stepUpTimePerMetre: 1
+  stepUpTimePerMetre: 0.4
   stepUpClearance: 0.08
   autoStep: 1
   logSteps: 0

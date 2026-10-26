@@ -1,8 +1,8 @@
 using UnityEngine;
 
 // What the character stands on, for the balance and gait code: the ground under a point, and step faces.
-// A face is where the ground changes height abruptly, as up or down a step; a slope changes it gradually
-// and is just ground to walk on.
+// A face is where the ground changes height abruptly, as up or down a step or a stair; a slope changes it
+// gradually and is just ground to walk on.
 public static class Ground
 {
     // Ground is searched for from this far above a reference height to this far below it, m: past knee
@@ -12,9 +12,9 @@ public static class Ground
     const float SearchDown = 0.7f;
     // Halvings when finding where the ground crosses a height between two points.
     const int CrossingSearchSteps = 6;
-    // A face makes at least half its height change within this distance either side of its middle, m.
-    const float FaceSharpness = 0.05f;
-    // A smaller height change isn't a face, m.
+    // A face changes the ground's height by at least MinFaceHeight, m, between points FaceSpacing, m, apart:
+    // steeper than any slope up to 31°.
+    const float FaceSpacing = 0.05f;
     const float MinFaceHeight = 0.03f;
 
     static int mask;
@@ -51,23 +51,33 @@ public static class Ground
         return (before + after) * 0.5f;
     }
 
-    // Whether the ground between `from` and `to` changes height at a face, and how far from `from` (flat) its
-    // middle is.
-    public static bool FaceBetween(Vector3 from, Vector3 to, float near, out float distance)
+    // Whether there's a face between `from` and `to`; if so, how far from `from` (flat) the first one's
+    // middle is, and how much the ground changes height across it (positive up).
+    public static bool FaceBetween(Vector3 from, Vector3 to, float near, out float distance, out float change)
     {
         distance = 0f;
+        change = 0f;
         Vector3 path = (to - from).Flat();
         float length = path.magnitude;
         if (length < 1e-4f) return false;
 
         Vector3 direction = path / length;
-        float start = HeightAt(from, near);
-        float change = HeightAt(to, near) - start;
-        if (Mathf.Abs(change) < MinFaceHeight) return false;
-
-        distance = Crossing(from, direction, length, near, start + change * 0.5f, change > 0f);
-        float before = HeightAt(from + direction * (distance - FaceSharpness), near);
-        float after = HeightAt(from + direction * (distance + FaceSharpness), near);
-        return (after - before) * Mathf.Sign(change) >= Mathf.Abs(change) * 0.5f;
+        float before = 0f, previous = HeightAt(from, near);
+        while (before < length)
+        {
+            float after = Mathf.Min(before + FaceSpacing, length);
+            float height = HeightAt(from + direction * after, near);
+            change = height - previous;
+            if (Mathf.Abs(change) >= MinFaceHeight)
+            {
+                distance = before + Crossing(from + direction * before, direction, after - before, near,
+                                             previous + change * 0.5f, change > 0f);
+                return true;
+            }
+            before = after;
+            previous = height;
+        }
+        change = 0f;
+        return false;
     }
 }

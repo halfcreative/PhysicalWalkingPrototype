@@ -50,8 +50,9 @@ public class PlayerController : MonoBehaviour
     // it, are capped at the speed that brakes at stepUpBraking m/s² to stop short of its start by
     // stepUpStandoffPerRise metres per metre of rise. Walked right up to its face, the foot had to rise
     // straight up it and dragged its toe there, and on a knee-high step the knee hit the face. Stopped and
-    // pushing, FootPlacement's stall step lifts the rear foot onto it.
-    [SerializeField] float stepUpStopFrom = 0.2f;
+    // pushing, FootPlacement's stall step lifts the rear foot onto it. Just above a tall stair's rise:
+    // stopping short of each stair backed the body off down the flight.
+    [SerializeField] float stepUpStopFrom = 0.21f;
     [SerializeField] float stepUpStandoffPerRise = 0.9f;
     [SerializeField] float stepUpBraking = 0.5f;
 

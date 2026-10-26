@@ -37,7 +37,7 @@ public class FootPlacement : MonoBehaviour
     const float RetargetStrength = 10f;
     // A swing whose real sole ends this far below the landing has failed: its toe caught the edge.
     const float TouchdownTolerance = 0.06f;
-    // How far above a step up's landing height the real sole must be to go on forward, m.
+    // How far above the top of a step up's face the real sole must be to go on forward, m.
     const float StepUpClearMargin = 0.03f;
     // The real foot's reach from the ankle along its length, m: toe ahead, heel behind.
     const float ToeAhead = 0.2f;
@@ -82,7 +82,7 @@ public class FootPlacement : MonoBehaviour
     [SerializeField] Transform ghostThigh;
     // This leg's TwoBoneIK hint.
     [SerializeField] Transform kneeHint;
-    // This leg's physical foot, checked at touchdown; see TouchdownPoint.
+    // This leg's physical foot. Its ankle is checked by the step-up hold and at touchdown; see TouchdownPoint.
     [SerializeField] Collider foot;
 
     [Header("Tuning")]
@@ -102,7 +102,9 @@ public class FootPlacement : MonoBehaviour
     // A sidestep out to this foot's side lands this multiple of the sideways distance to the capture point.
     [SerializeField] float sideStepGain = 1.25f;
     // Pushing (input at least stallInput) but slower than stallSpeed, m/s, for stallTime, s, since the last
-    // landing: the body is pinned against something, so the rear foot steps stallStepReach, m, along the input.
+    // landing: the body is pinned against something, so the rear foot steps stallStepReach, m, past the other
+    // along the input. Measured from the capture point, behind the front foot, it fell short of the next stair.
+    // A climbing step (IsClimbing) is the same step, at the same input.
     [SerializeField] float stallInput = 0.3f;
     [SerializeField] float stallSpeed = 0.1f;
     [SerializeField] float stallTime = 0.5f;
@@ -116,14 +118,15 @@ public class FootPlacement : MonoBehaviour
     // Swing fraction before a step up's foot starts forward: it lifts first, so it isn't driven into the
     // step's face while still low.
     [SerializeField, Range(0f, 0.8f)] float stepUpForwardFrom = 0.25f;
-    // Longest a step up's swing waits, s, once its target is at full height (stepUpRiseBy), for the real sole
-    // to clear the landing height. Until it has, the foot goes no further forward than its toe EdgeMargin
-    // short of the step's face. The real foot trails its target, and on a high step it was carried forward
-    // still under the edge and stubbed on the face.
+    // Longest a step up's swing waits, s, with its toe at the face it crosses first and its target at full
+    // height (stepUpRiseBy), for the real sole to clear the face's top. Until it has, the foot goes no further
+    // forward than its toe EdgeMargin short of that face. The real foot trails its target, and on a high step
+    // it was carried forward still under the edge and stubbed on the face.
     [SerializeField] float stepUpMaxHold = 0.6f;
     // Extra swing time per metre of rise, s/m: the real foot trails the ghost, so a high step needs longer
-    // for the real foot, not just the target, to clear the edge.
-    [SerializeField] float stepUpTimePerMetre = 1f;
+    // for the real foot, not just the target, to clear the edge. Kept small: the hold covers a foot that
+    // hasn't, and up stairs, where each stride rises two stairs, more made every step a slow one.
+    [SerializeField] float stepUpTimePerMetre = 0.4f;
     // Least clearance over a step up's edge, m, however short the step.
     [SerializeField] float stepUpClearance = 0.08f;
 
@@ -141,6 +144,9 @@ public class FootPlacement : MonoBehaviour
     Quaternion facing = Quaternion.identity;
     Quaternion liftoffFacing = Quaternion.identity;
     Vector3 liftoffPoint;
+    // Where the step is aimed, and where that is on the ground and off any edge. Re-aiming blends the aim, so
+    // the shifts that keep the landing off edges don't build up from tick to tick.
+    Vector3 aimPoint;
     Vector3 landingPoint;
     bool isStepping;
     bool isCrossing;
@@ -156,6 +162,7 @@ public class FootPlacement : MonoBehaviour
 
     // Read off the rig at Awake.
     Transform ghostHips;
+    ConfigurableJoint ankle;   // on the physical foot, connected to the shin: the ankle is its anchor
     float side;            // −1 left leg, +1 right
     float hipHalfWidth;    // this hip's distance from the centreline
 
@@ -184,6 +191,11 @@ public class FootPlacement : MonoBehaviour
     Vector3 BodyVelocity => balanceSensor.CenterOfMassVelocity.Flat();
     bool CrossesFace => !float.IsPositiveInfinity(faceAt);
     float FootGroundOffset => playerRig.FootGroundOffset;
+    // The physical sole's height under the ankle, as the ground point is the target's. Not the foot's lowest
+    // corner: swinging up a step with the body over it, the toe hangs well below the ankle, and judged by the
+    // toe a foot high enough to go on never was.
+    float RealSoleHeight => RealAnkle.y - FootGroundOffset;
+    Vector3 RealAnkle => ankle.transform.TransformPoint(ankle.anchor);
 
     void Awake()
     {
@@ -195,6 +207,7 @@ public class FootPlacement : MonoBehaviour
         }
 
         ghostHips = playerRig.GhostHips;
+        if (foot) ankle = foot.GetComponent<ConfigurableJoint>();
 
         float hipOffset = Vector3.Dot(ghostThigh.position - ghostHips.position, ghostHips.right);
         side = Mathf.Sign(hipOffset);
@@ -276,17 +289,18 @@ public class FootPlacement : MonoBehaviour
         {
             if (!ShouldCatchStep(captureError, capture, mySole, otherSole)) return;
         }
-        else if (IsStalled(lastLand))
+        else if (IsStalled(lastLand) || IsClimbing())
         {
             if (!IsRearFoot(mySole, otherSole)) return;
-            capture += playerController.MoveInputWorld.normalized * stallStepReach;
+            capture = otherSole + playerController.MoveInputWorld.normalized * stallStepReach;
             isCatchStep = true;
             stalled = true;
         }
         else if (!ShouldTurnStep() && !ShouldGatherStep(com, mySole, otherSole)) return;
 
-        Vector3 landing = ComputeLanding(capture, groundPoint, SwingDuration(BodyVelocity.magnitude), crossing,
-                                         out Vector3 normal);
+        float swingDuration = SwingDuration(BodyVelocity.magnitude);
+        Vector3 aim = AimLanding(capture, groundPoint, swingDuration, crossing);
+        Vector3 landing = OntoGround(aim, BodyVelocity * swingDuration, out Vector3 normal);
         // A turn step may land almost where it lifted off: it moves the facing.
         if (isCatchStep && (landing - groundPoint).Flat().magnitude < MinStepLength) return;
 
@@ -301,7 +315,7 @@ public class FootPlacement : MonoBehaviour
         }
 
         // A stall step goes where it was sent: re-aiming at the capture point would pull it back off the step.
-        BeginStep(landing, normal, !stalled, crossing);
+        BeginStep(aim, landing, normal, !stalled, crossing);
     }
 
     // Moving fast and mostly sideways, with the lead foot just landed: the trailing foot crosses in front
@@ -360,6 +374,13 @@ public class FootPlacement : MonoBehaviour
         (BodyVelocity.magnitude < stallSpeed || playerController.IsHeldAtStepUp) &&
         Time.time - lastLand >= stallTime;
 
+    // Pushing on with the feet split across a rise, this foot below the other, as up stairs: it steps on now,
+    // as the stall step does, instead of once the body has passed the other foot. On stairs that foot lands
+    // a whole stair ahead, so waiting for the body made every stair a stop.
+    bool IsClimbing() =>
+        playerController.MoveInputWorld.magnitude >= stallInput &&
+        Ground.FaceBetween(groundPoint, otherFoot.GroundPoint, groundPoint.y, out _, out float change) && change > 0f;
+
     // Further back along the input (ties to the left).
     bool IsRearFoot(Vector3 mySole, Vector3 otherSole)
     {
@@ -389,9 +410,13 @@ public class FootPlacement : MonoBehaviour
 
     // --- Landing ---------------------------------------------------------------------------------------
 
-    // Where a foot lifting off from `liftoff` should land, `timeToLand` seconds from now. Everything is
-    // judged where the body will be at touchdown, carried on by its velocity.
-    Vector3 ComputeLanding(Vector3 capture, Vector3 liftoff, float timeToLand, bool crossing, out Vector3 normal)
+    // Where a foot lifting off from `liftoff` should aim to land, `timeToLand` seconds from now: OntoGround
+    // puts it on the ground and off edges. Everything is judged where the body will be at touchdown, carried
+    // on by its velocity. Reach is judged at the ground's height where that's higher than liftoff: at liftoff
+    // height, a step up a stair was clamped back under the hip, as if the leg had to reach the floor. Down a
+    // drop the body sinks with the step, so it's judged as on the level; at the lower ground's height, the
+    // steps off it came up too short to catch the body.
+    Vector3 AimLanding(Vector3 capture, Vector3 liftoff, float timeToLand, bool crossing)
     {
         Vector3 drift = BodyVelocity * timeToLand;
 
@@ -407,37 +432,63 @@ public class FootPlacement : MonoBehaviour
                      + IntoFallReach(toCapture)
                      + (crossing ? Vector3.zero : BodyRight * (side * hipHalfWidth));
         Vector3 landing = sole - BodyForward * SoleCentreForward;
-        landing.y = liftoff.y;
+        landing.y = Mathf.Max(liftoff.y, Ground.HeightAt(landing, liftoff.y));
 
         landing = crossing ? ClampCrossover(landing, drift) : ClampStanceWidth(landing, drift);
         landing = ClampStride(landing);
-        landing = ClampToReach(landing, drift);
+        return ClampToReach(landing, drift);
+    }
 
+    // An aimed landing on the ground under it, off any step's edge, and at most one level up from the other
+    // foot. Up stairs a foot goes one stair past the other: one past a second rise lands just past the first
+    // instead, ankle EdgeMargin onto it; taking two at once was a lunge the leg couldn't power. Checked last,
+    // so the shift off an edge can't carry it up a second stair. Down them it lands where it's aimed: kept to
+    // one stair, the steps were too short to catch the body, which pitched over them.
+    Vector3 OntoGround(Vector3 landing, Vector3 drift, out Vector3 normal)
+    {
         normal = Vector3.up;
         if (Ground.At(landing, landing.y, out Vector3 ground, out Vector3 groundUp))
         {
             landing = ground;
             normal = groundUp;
         }
+        landing = KeepFootOffEdges(landing, drift, ref normal);
 
-        return KeepFootOffEdges(landing, drift, ref normal);
+        Vector3 stance = otherFoot.GroundPoint;
+        if (Ground.FaceBetween(stance, landing, stance.y, out float face, out float change) && change > 0f)
+        {
+            Vector3 pastFirst = stance + (landing - stance).Flat().normalized * (face + EdgeMargin);
+            if (Ground.FaceBetween(pastFirst, landing, stance.y + change, out _, out _) &&
+                Ground.At(pastFirst, stance.y + change, out ground, out groundUp))
+            {
+                landing = ground;
+                normal = groundUp;
+            }
+        }
+        return landing;
     }
 
-    // A foot landing across a step's face (heel and toe on different levels) is hooked on the edge's corner,
-    // on neither level. So the landing moves along the heading until the whole foot is on one side: past the
-    // edge (heel EdgeMargin beyond it) when that's in reach, since the body is heading that way, otherwise
-    // short of it (toe EdgeMargin back). Preferring the nearer side left a slowed body shuffling at a step's
-    // face, landing short every time. A foot across a slope is just on the slope.
+    // A foot landing across a step's face (heel and toe on different levels) is hooked on the edge's corner.
+    // It may overhang the lower level, as a heel does off the back of a stair or a toe off its front, but not
+    // run into the higher one, and the ankle must be on its own level. Stair treads are shorter than the
+    // foot, so it can't always be wholly on one. So the landing moves along the heading: past the face when
+    // that's in reach, since the body is heading that way, otherwise short of it, each by EdgeMargin.
+    // Preferring the nearer side left a slowed body shuffling at a step's face, landing short every time. A
+    // foot across a slope is just on the slope.
     Vector3 KeepFootOffEdges(Vector3 landing, Vector3 drift, ref Vector3 normal)
     {
         Vector3 forward = playerController.Heading * Vector3.forward;
         Vector3 heel = landing - forward * HeelBehind;
-        if (!Ground.FaceBetween(heel, landing + forward * ToeAhead, landing.y, out float fromHeel)) return landing;
+        if (!Ground.FaceBetween(heel, landing + forward * ToeAhead, landing.y, out float fromHeel, out float change))
+            return landing;
 
-        // Where the face is, as an offset from the ankle.
+        // Where the face is, as an offset from the ankle. Up a rise, past it is the ankle on top (the heel
+        // overhangs) and short of it the toe clear of it; down a drop, past it is the heel clear of it and
+        // short of it the ankle on top (the toe overhangs).
         float edge = fromHeel - HeelBehind;
-        float past = edge + HeelBehind + EdgeMargin;
-        float shortOf = edge - ToeAhead - EdgeMargin;
+        bool rises = change > 0f;
+        float past = edge + (rises ? 0f : HeelBehind) + EdgeMargin;
+        float shortOf = edge - (rises ? ToeAhead : 0f) - EdgeMargin;
         if (TryShift(landing, forward * past, drift, ref normal, out Vector3 moved)) return moved;
         if (TryShift(landing, forward * shortOf, drift, ref normal, out moved)) return moved;
         return landing;
@@ -555,41 +606,42 @@ public class FootPlacement : MonoBehaviour
     // real foot trails the ghost by ~0.15 s; the hip sag is added on sin(πt) so touchdown is unaffected.
     void AdvanceSwing()
     {
-        faceAt = Ground.FaceBetween(liftoffPoint, landingPoint, liftoffPoint.y, out float face)
+        faceAt = Ground.FaceBetween(liftoffPoint, landingPoint, liftoffPoint.y, out float face, out float faceRise)
             ? face
             : float.PositiveInfinity;
         float rise = landingPoint.y - liftoffPoint.y;
         bool stepUp = CrossesFace && rise > 0f;
         float swingDuration = SwingDuration(BodyVelocity.magnitude) + (stepUp ? stepUpTimePerMetre * rise : 0f);
         stepProgress += Time.fixedDeltaTime / swingDuration;
-        // Not yet clear of a step up's face: hold at full height until the real foot is.
-        if (stepUp && !stepUpCleared)
-        {
-            bool clear = foot == null || foot.bounds.min.y >= landingPoint.y + StepUpClearMargin;
-            if (clear || stepUpHoldTime >= stepUpMaxHold) stepUpCleared = true;
-            else if (stepProgress - stepUpHeld > stepUpRiseBy)
-            {
-                stepUpHeld = stepProgress - stepUpRiseBy;
-                stepUpHoldTime += Time.fixedDeltaTime;
-            }
-        }
+        // Until the real foot is clear of the first face a step up crosses (up stairs, the stair the other foot
+        // is on, below the landing), its toe goes no closer than EdgeMargin short of it, backing off if it
+        // lifted off closer, and once there at full height the swing waits. Only there: waiting while still
+        // short of the face, the foot fell behind a body that walked on.
+        bool clear = ankle == null || RealSoleHeight >= liftoffPoint.y + faceRise + StepUpClearMargin;
+        if (stepUp && (clear || stepUpHoldTime >= stepUpMaxHold)) stepUpCleared = true;
         float t = Mathf.Clamp01(stepProgress - stepUpHeld);
         float travel = stepUp ? SmoothStep(Mathf.InverseLerp(stepUpForwardFrom, 1f, t)) : SmoothStep(t);
-        // Until clear, the toe stays EdgeMargin short of the face. Negative when the foot lifted off with its
-        // toe already closer: it backs off as it rises.
         if (stepUp && !stepUpCleared)
         {
-            float shortOf = faceAt - ToeAhead - EdgeMargin;
-            travel = Mathf.Min(travel, shortOf / (landingPoint - liftoffPoint).Flat().magnitude);
+            float shortOf = (faceAt - ToeAhead - EdgeMargin) / (landingPoint - liftoffPoint).Flat().magnitude;
+            if (travel > shortOf)
+            {
+                travel = shortOf;
+                if (t >= stepUpRiseBy)
+                {
+                    stepUpHeld += Time.fixedDeltaTime / swingDuration;
+                    stepUpHoldTime += Time.fixedDeltaTime;
+                }
+            }
         }
 
         if (retargetsInFlight)
         {
-            Vector3 aim = ComputeLanding(balanceSensor.CapturePoint.Flat(), liftoffPoint, (1f - t) * swingDuration,
-                                         isCrossing, out Vector3 aimNormal);
+            float timeToLand = (1f - t) * swingDuration;
+            Vector3 aim = AimLanding(balanceSensor.CapturePoint.Flat(), liftoffPoint, timeToLand, isCrossing);
             float weight = Mathf.Clamp01(RetargetStrength * Time.fixedDeltaTime * (1f - travel));
-            landingPoint = Vector3.Lerp(landingPoint, aim, weight);
-            groundNormal = aimNormal;
+            aimPoint = Vector3.Lerp(aimPoint, aim, weight);
+            landingPoint = OntoGround(aimPoint, BodyVelocity * timeToLand, out groundNormal);
         }
 
         // The foot turns to the heading over the swing and holds that once planted.
@@ -610,18 +662,14 @@ public class FootPlacement : MonoBehaviour
 
     // Where the foot actually came down: the landing, unless the real sole ended well below it because its
     // toe caught the edge of a step up. Planting on top then would drive the leg toward a pose its foot isn't
-    // in, so the foot is planted on the ground under where it really is, and the next step tries again.
+    // in, so the foot is planted on the ground under where its ankle really is, and the next step tries again.
+    // Judged by the sole under the ankle, as the step-up hold is: a toe hanging below a landed foot isn't a miss.
     Vector3 TouchdownPoint()
     {
-        if (foot == null || landingPoint.y - foot.bounds.min.y < TouchdownTolerance) return landingPoint;
+        if (ankle == null || landingPoint.y - RealSoleHeight < TouchdownTolerance) return landingPoint;
+        if (!Ground.At(RealAnkle, RealSoleHeight, out Vector3 planted, out Vector3 normal)) return landingPoint;
 
-        Vector3 sole = foot.bounds.center;
-        if (!Physics.Raycast(sole + Vector3.up * 0.1f, Vector3.down, out RaycastHit hit, 1f, Ground.Mask,
-                             QueryTriggerInteraction.Ignore))
-            return landingPoint;
-
-        groundNormal = hit.normal;
-        Vector3 planted = hit.point - FootForward * SoleCentreForward;
+        groundNormal = normal;
         if (logSteps) Debug.Log($"[{Time.time:F2}] {name} missed its landing at {landingPoint:F2}; planted at {planted:F2}", this);
         return planted;
     }
@@ -664,13 +712,14 @@ public class FootPlacement : MonoBehaviour
     }
 
     // A fixed step from wherever the foot is now, for StepTester.
-    public void BeginStep(Vector3 landing, Vector3 normal) => BeginStep(landing, normal, false, false);
+    public void BeginStep(Vector3 landing, Vector3 normal) => BeginStep(landing, landing, normal, false, false);
 
-    void BeginStep(Vector3 landing, Vector3 normal, bool retarget, bool crossing)
+    void BeginStep(Vector3 aim, Vector3 landing, Vector3 normal, bool retarget, bool crossing)
     {
         isCrossing = crossing;
         liftoffPoint = groundPoint;
         liftoffFacing = facing;
+        aimPoint = aim;
         landingPoint = landing;
         groundNormal = normal;
         stepProgress = 0f;

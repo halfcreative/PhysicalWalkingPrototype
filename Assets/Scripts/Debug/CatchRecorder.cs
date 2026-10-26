@@ -144,7 +144,7 @@ public class CatchRecorder : MonoBehaviour
             "lGroundX,rGroundX,swayX,swayZ,pelvisRoll,momentumX,momentumY,fallLimit,breach,fallen,pelvisTilt," +
             "momentumCharge,tiltCharge,dropCharge,torsoRoll,lCrossing,rCrossing," +
             "lArmOut,lArmFwd,lElbow,rArmOut,rArmFwd,rElbow,headPitch,headRoll,headYaw," +
-            "lHipX,lHipXTarget,rHipX,rHipXTarget,lKneeX,lKneeXTarget,rKneeX,rKneeXTarget,riseAhead,riseDistance\n");
+            "lHipX,lHipXTarget,rHipX,rHipXTarget,lKneeX,lKneeXTarget,rKneeX,rKneeXTarget,riseAhead,riseDistance,lGroundY,rGroundY,supportY\n");
     }
 
     void FixedUpdate()
@@ -218,7 +218,8 @@ public class CatchRecorder : MonoBehaviour
                JointRotation(hipR).AngleAboutX(), Quaternion.Inverse(hipR.targetRotation).AngleAboutX(),
                JointRotation(kneeL).AngleAboutX(), Quaternion.Inverse(kneeL.targetRotation).AngleAboutX(),
                JointRotation(kneeR).AngleAboutX(), Quaternion.Inverse(kneeR.targetRotation).AngleAboutX(),
-               balanceSensor.RiseAhead, Mathf.Min(balanceSensor.RiseDistance, 9f));
+               balanceSensor.RiseAhead, Mathf.Min(balanceSensor.RiseDistance, 9f),
+               leftFoot.GroundPoint.y, rightFoot.GroundPoint.y, balanceSensor.SupportCentre.y);
 
         if (Time.time - startTime >= duration)
             Write();

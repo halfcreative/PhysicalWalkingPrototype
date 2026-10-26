@@ -69,7 +69,7 @@ public class StepUpAssist : MonoBehaviour
     {
         float left = leftFoot.GroundPoint.y, right = rightFoot.GroundPoint.y;
         bool straddling = !leftFoot.IsStepping && !rightFoot.IsStepping &&
-                          Ground.FaceBetween(leftFoot.GroundPoint, rightFoot.GroundPoint, Mathf.Min(left, right), out _);
+                          Ground.FaceBetween(leftFoot.GroundPoint, rightFoot.GroundPoint, Mathf.Min(left, right), out _, out _);
         if (!straddling && !leftFoot.IsSteppingUp && !rightFoot.IsSteppingUp) return;
 
         // The higher planted foot; a stepping foot's ground point is mid-air, so it doesn't count.
