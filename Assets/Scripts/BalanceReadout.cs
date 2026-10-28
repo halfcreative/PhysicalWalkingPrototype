@@ -14,7 +14,7 @@ public struct BalanceReadout : INetworkSerializable
     public float TiltCharge;
     public float DropCharge;
     public float PelvisTilt;
-    public float CenterOfMassHeight;
+    public float HeightAboveSupport;
     public float CounterSteer;
 
     public Vector2 NetForce => Sway + MoveInput;
@@ -30,7 +30,7 @@ public struct BalanceReadout : INetworkSerializable
         TiltCharge = playerController.TiltCharge,
         DropCharge = playerController.DropCharge,
         PelvisTilt = playerController.PelvisTilt,
-        CenterOfMassHeight = playerController.CenterOfMassHeight,
+        HeightAboveSupport = playerController.HeightAboveSupport,
         CounterSteer = balanceController != null ? balanceController.CounterSteer : 0f,
     };
 
@@ -45,7 +45,7 @@ public struct BalanceReadout : INetworkSerializable
         serializer.SerializeValue(ref TiltCharge);
         serializer.SerializeValue(ref DropCharge);
         serializer.SerializeValue(ref PelvisTilt);
-        serializer.SerializeValue(ref CenterOfMassHeight);
+        serializer.SerializeValue(ref HeightAboveSupport);
         serializer.SerializeValue(ref CounterSteer);
     }
 }

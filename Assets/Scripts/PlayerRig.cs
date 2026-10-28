@@ -94,7 +94,7 @@ public class PlayerRig : MonoBehaviour
     void FixedUpdate()
     {
         Vector3 hip = HipCentre();
-        Vector3 stance = balanceController.StanceCentre();
+        Vector3 stance = balanceSensor.SupportCentre;
         Vector3 error = (balanceController.BalanceTarget() - balanceSensor.CapturePoint).Flat();
         Vector3 shifted = hip + Vector3.ClampMagnitude(error * balanceShiftGain, MaxBalanceShift);
 

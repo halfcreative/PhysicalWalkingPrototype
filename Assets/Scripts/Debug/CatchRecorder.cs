@@ -23,6 +23,7 @@ public class CatchRecorder : MonoBehaviour
     Transform upperArmL, upperArmR, forearmL, forearmR, head;
     ConfigurableJoint hipL, hipR, kneeL, kneeR, ankleL, ankleR;
     Collider soleL, soleR;
+    FootClipSensor clipL, clipR;
 
     // Ground impulse on each foot since the last FixedUpdate.
     Vector3 leftImpulse, rightImpulse;
@@ -84,6 +85,8 @@ public class CatchRecorder : MonoBehaviour
         ankleR = rightFootBody.GetComponent<ConfigurableJoint>();
         soleL = leftFootBody.GetComponent<Collider>();
         soleR = rightFootBody.GetComponent<Collider>();
+        clipL = leftFootBody.GetComponent<FootClipSensor>();
+        clipR = rightFootBody.GetComponent<FootClipSensor>();
     }
 
     // Contact reporting is fixed when a collider pair is created, so a foot already on the ground would
@@ -143,7 +146,9 @@ public class CatchRecorder : MonoBehaviour
             "rAnkleTwist,rAnkleTwistTarget,lGhostHipTwist,rGhostHipTwist," +
             "lGroundX,rGroundX,swayX,swayZ,pelvisRoll,momentumX,momentumY,fallLimit,breach,fallen,pelvisTilt," +
             "momentumCharge,tiltCharge,dropCharge,torsoRoll,lCrossing,rCrossing," +
-            "lArmOut,lArmFwd,lElbow,rArmOut,rArmFwd,rElbow,headPitch,headRoll,headYaw\n");
+            "lArmOut,lArmFwd,lElbow,rArmOut,rArmFwd,rElbow,headPitch,headRoll,headYaw," +
+            "lHipX,lHipXTarget,rHipX,rHipXTarget,lKneeX,lKneeXTarget,rKneeX,rKneeXTarget,riseAhead,riseDistance,lGroundY,rGroundY,supportY," +
+            "lClip,rClip,lSwingGap,rSwingGap,lSwingSpeed,rSwingSpeed\n");
     }
 
     void FixedUpdate()
@@ -160,7 +165,7 @@ public class CatchRecorder : MonoBehaviour
         Quaternion ghostHips = playerRig.GhostHips.rotation;
 
         Append(Time.time - startTime, com.z, comVelocity.x, comVelocity.z, capture.x, capture.z,
-               balanceController.StanceCentre().z,
+               balanceSensor.SupportCentre.z,
                Pitch(pelvis.rotation), PitchRate(pelvis), Pitch(torso.rotation),
                SignedAngle(balanceController.AnkleTrim.eulerAngles.x),
                leftFoot.IsStepping ? 1 : 0, leftFoot.GroundPoint.z, leftForce.x, leftForce.y, leftForce.z,
@@ -210,7 +215,19 @@ public class CatchRecorder : MonoBehaviour
                leftFoot.IsCrossing ? 1 : 0, rightFoot.IsCrossing ? 1 : 0,
                ArmOut(upperArmL, -1f), ArmForward(upperArmL), ElbowBend(upperArmL, forearmL),
                ArmOut(upperArmR, 1f), ArmForward(upperArmR), ElbowBend(upperArmR, forearmR),
-               HeadPitch(), HeadRoll(), HeadYaw());
+               HeadPitch(), HeadRoll(), HeadYaw(),
+               // Hip and knee about their hinge (X) axis in joint space, degrees: where each is, and where its
+               // drive is pulling it. The same space as the joint's X limits.
+               JointRotation(hipL).AngleAboutX(), Quaternion.Inverse(hipL.targetRotation).AngleAboutX(),
+               JointRotation(hipR).AngleAboutX(), Quaternion.Inverse(hipR.targetRotation).AngleAboutX(),
+               JointRotation(kneeL).AngleAboutX(), Quaternion.Inverse(kneeL.targetRotation).AngleAboutX(),
+               JointRotation(kneeR).AngleAboutX(), Quaternion.Inverse(kneeR.targetRotation).AngleAboutX(),
+               balanceSensor.RiseAhead, Mathf.Min(balanceSensor.RiseDistance, 9f),
+               leftFoot.GroundPoint.y, rightFoot.GroundPoint.y, balanceSensor.SupportCentre.y,
+               // FootClip: 0 none, 1 scuff, 2 snag; −1 with no sensor.
+               clipL ? (float)clipL.Clip : -1f, clipR ? (float)clipR.Clip : -1f,
+               clipL ? clipL.SwingGap : 0f, clipR ? clipR.SwingGap : 0f,
+               clipL ? clipL.SwingSpeed : 0f, clipR ? clipR.SwingSpeed : 0f);
 
         if (Time.time - startTime >= duration)
             Write();

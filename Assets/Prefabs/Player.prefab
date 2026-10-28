@@ -179,7 +179,7 @@ ConfigurableJoint:
     bounciness: 0
     contactDistance: 0
   m_HighAngularXLimit:
-    limit: 90
+    limit: 110
     bounciness: 0
     contactDistance: 0
   m_AngularYZLimitSpring:
@@ -885,7 +885,7 @@ ConfigurableJoint:
     bounciness: 0
     contactDistance: 0
   m_HighAngularXLimit:
-    limit: 90
+    limit: 110
     bounciness: 0
     contactDistance: 0
   m_AngularYZLimitSpring:
@@ -1125,6 +1125,7 @@ GameObject:
   - component: {fileID: 6231117991899040431}
   - component: {fileID: 4618147978341032892}
   - component: {fileID: 2084025618374337299}
+  - component: {fileID: 2011921054527714352}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -1174,6 +1175,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9f7588c2b55788f4787f1fe773b1d16e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BalanceSensor
+  leftFoot: {fileID: 2939301174023753430}
+  rightFoot: {fileID: 3928006529086975609}
 --- !u!114 &7289195077776883742
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1188,8 +1191,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BalanceController
   balanceSensor: {fileID: 5479223553370809772}
   pelvis: {fileID: 2552698114729887385}
-  leftFoot: {fileID: 2939301174023753430}
-  rightFoot: {fileID: 3928006529086975609}
   playerController: {fileID: 8618065122149107637}
   torsoLean: {fileID: 7479433955849844461}
   standingHipHeight: 0.85
@@ -1260,6 +1261,7 @@ MonoBehaviour:
   playerController: {fileID: 8618065122149107637}
   stanceAnkleStiffness: 0.7
   swingFeedForward: 1
+  swingToeLift: 15
   landingStiffness: 0.3
   landingRampTime: 0.15
   softenFromSwing: 0.8
@@ -1286,6 +1288,7 @@ MonoBehaviour:
   playerController: {fileID: 8618065122149107637}
   stanceAnkleStiffness: 0.7
   swingFeedForward: 1
+  swingToeLift: 15
   landingStiffness: 0.3
   landingRampTime: 0.15
   softenFromSwing: 0.8
@@ -1318,16 +1321,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   balanceSensor: {fileID: 5479223553370809772}
   pelvis: {fileID: 2552698114729887385}
-  drunkAmount: 1
+  drunkAmount: 0
   swayMagnitude: 1.5
   swayRotationRate: 90
   swayResponseSpeed: 3
   swaySideSpeed: 0.9
   moveInputScale: 1
-  maxSpeed: 2.5
+  maxSpeed: 1.8
   maxSideSpeed: 0.6
   accelerationTime: 0.8
   moveInputResponse: 12
+  stepApproachSpeed: 0.7
+  stepSlowFrom: 0.05
+  stepSlowFull: 0.15
+  stepUpStopFrom: 0.21
+  stepUpStandoffPerRise: 0.9
+  stepUpBraking: 0.5
   drunkMomentumLimit: 0.7
   fallMeterCapacity: 0.5
   fallMeterDrainRate: 0.05
@@ -1583,14 +1592,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 3476406825
+  GlobalObjectIdHash: 2748064725
   InScenePlacedSourceGlobalObjectIdHash: 0
   m_InScenePlacedDisabledByDefault: 0
   DeferredDespawnTick: 0
   Ownership: 1
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
-  m_InScenePlaced: 1
+  m_InScenePlaced: 0
   ActiveSceneSynchronization: 0
   SceneMigrationSynchronization: 0
   SpawnWithObservers: 1
@@ -1628,6 +1637,7 @@ MonoBehaviour:
   - {fileID: 3928006529086975609}
   - {fileID: 4618147978341032892}
   - {fileID: 2084025618374337299}
+  - {fileID: 2011921054527714352}
 --- !u!114 &6231117991899040431
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1677,6 +1687,31 @@ MonoBehaviour:
   side: 1
   gripRadius: 0.08
   breakForce: 1500
+--- !u!114 &2011921054527714352
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2498397846915829608}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3f648a7c29b4565e7911439d404e41fb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::StepUpAssist
+  playerController: {fileID: 8618065122149107637}
+  balanceController: {fileID: 7289195077776883742}
+  pelvis: {fileID: 2552698114729887385}
+  leftFoot: {fileID: 2939301174023753430}
+  rightFoot: {fileID: 3928006529086975609}
+  leftAnkle: {fileID: 4607126221180355616}
+  rightAnkle: {fileID: 1590101488036042893}
+  footSpring: 2000
+  footDamper: 60
+  footMaxForce: 250
+  pelvisSpring: 3000
+  pelvisDamper: 300
+  pelvisMaxLift: 250
 --- !u!1 &2802489676217664911
 GameObject:
   m_ObjectHideFlags: 0
@@ -2012,7 +2047,7 @@ ConfigurableJoint:
     spring: 0
     damper: 0
   m_LowAngularXLimit:
-    limit: -120
+    limit: -140
     bounciness: 0
     contactDistance: 0
   m_HighAngularXLimit:
@@ -2577,6 +2612,7 @@ MonoBehaviour:
   otherFoot: {fileID: 2939301174023753430}
   ghostThigh: {fileID: 2120431170641170021}
   kneeHint: {fileID: 3675145510686834052}
+  foot: {fileID: 882485274423171988}
   captureGain: 0.8
   stepTriggerDistance: 0.08
   stepHeight: 0.1
@@ -2585,6 +2621,16 @@ MonoBehaviour:
   inputStepReach: 0.15
   crossoverSpeed: 0.35
   sideStepGain: 1.25
+  stallInput: 0.3
+  stallSpeed: 0.1
+  stallTime: 0.5
+  stallStepReach: 0.35
+  stepUpRiseBy: 0.5
+  stepDownDescendFrom: 0.5
+  stepUpForwardFrom: 0.25
+  stepUpMaxHold: 0.6
+  stepUpTimePerMetre: 0.4
+  stepUpClearance: 0.08
   autoStep: 1
   logSteps: 0
 --- !u!1 &6236681371967397598
@@ -2847,6 +2893,7 @@ GameObject:
   - component: {fileID: 882485274423171988}
   - component: {fileID: 4196363898047620453}
   - component: {fileID: 1590101488036042893}
+  - component: {fileID: 837915297722335595}
   m_Layer: 8
   m_Name: Foot_R
   m_TagString: Untagged
@@ -3076,6 +3123,20 @@ ConfigurableJoint:
   m_EnablePreprocessing: 0
   m_MassScale: 1
   m_ConnectedMassScale: 1
+--- !u!114 &837915297722335595
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6414721404050284059}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f6895cbe831155e0ba83d2e64a80019f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FootClipSensor
+  footPlacement: {fileID: 3928006529086975609}
+  snagGap: 0.05
 --- !u!1 &6802412519892764969
 GameObject:
   m_ObjectHideFlags: 0
@@ -4513,7 +4574,7 @@ ConfigurableJoint:
     spring: 0
     damper: 0
   m_LowAngularXLimit:
-    limit: -120
+    limit: -140
     bounciness: 0
     contactDistance: 0
   m_HighAngularXLimit:
@@ -4597,6 +4658,7 @@ GameObject:
   - component: {fileID: 7459023015317930062}
   - component: {fileID: 4464663847340008768}
   - component: {fileID: 4607126221180355616}
+  - component: {fileID: 3889056486124499282}
   m_Layer: 8
   m_Name: Foot_L
   m_TagString: Untagged
@@ -4826,6 +4888,20 @@ ConfigurableJoint:
   m_EnablePreprocessing: 0
   m_MassScale: 1
   m_ConnectedMassScale: 1
+--- !u!114 &3889056486124499282
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9171986339879109205}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f6895cbe831155e0ba83d2e64a80019f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FootClipSensor
+  footPlacement: {fileID: 2939301174023753430}
+  snagGap: 0.05
 --- !u!1 &9193362577982348238
 GameObject:
   m_ObjectHideFlags: 0
@@ -4889,6 +4965,7 @@ MonoBehaviour:
   otherFoot: {fileID: 3928006529086975609}
   ghostThigh: {fileID: 3671178030599232684}
   kneeHint: {fileID: 5471992246548675260}
+  foot: {fileID: 7459023015317930062}
   captureGain: 0.8
   stepTriggerDistance: 0.08
   stepHeight: 0.1
@@ -4897,5 +4974,15 @@ MonoBehaviour:
   inputStepReach: 0.15
   crossoverSpeed: 0.35
   sideStepGain: 1.25
+  stallInput: 0.3
+  stallSpeed: 0.1
+  stallTime: 0.5
+  stallStepReach: 0.35
+  stepUpRiseBy: 0.5
+  stepDownDescendFrom: 0.5
+  stepUpForwardFrom: 0.25
+  stepUpMaxHold: 0.6
+  stepUpTimePerMetre: 0.4
+  stepUpClearance: 0.08
   autoStep: 1
   logSteps: 0
