@@ -5,8 +5,9 @@ using UnityEngine;
 // ledge, drag a prop or carry another player. ArmDrive reaches the arm along the aim meanwhile.
 //
 // Host only: the grip is part of the simulation, and clients see it through the pose stream. Letting go,
-// falling or a reset releases it. Pulled past breakForce the grip tears loose, and the hand can take hold
-// again after RegrabDelay if the input is still held.
+// falling or a reset releases it, and so does the held body going away, as a character's does when its
+// player leaves. Pulled past breakForce the grip tears loose, and the hand can take hold again after
+// RegrabDelay if the input is still held.
 [DefaultExecutionOrder(20)]   // after ArmDrive (10) has aimed the arm this tick
 public class HandGrab : MonoBehaviour
 {
@@ -29,6 +30,9 @@ public class HandGrab : MonoBehaviour
     FixedJoint grip;
     // Set while a grip exists, so a joint the engine broke can be told from one never made.
     bool gripping;
+    // The grip holds a body, not the world. A joint whose body is destroyed holds the world instead, so
+    // without this the hand would stay fixed where that body last was.
+    bool holdsBody;
     float regrabAt;
 
     public bool IsHolding => grip != null;
@@ -88,7 +92,7 @@ public class HandGrab : MonoBehaviour
             regrabAt = Time.time + RegrabDelay;
         }
 
-        if (playerController.IsFallen || !InputHeld)
+        if (playerController.IsFallen || !InputHeld || (holdsBody && HeldBody == null))
         {
             Release();
             return;
@@ -131,6 +135,7 @@ public class HandGrab : MonoBehaviour
         grip.breakForce = breakForce;
         grip.enableCollision = false;
         gripping = true;
+        holdsBody = held != null;
     }
 
     void Release()
@@ -138,6 +143,7 @@ public class HandGrab : MonoBehaviour
         if (grip != null) Destroy(grip);
         grip = null;
         gripping = false;
+        holdsBody = false;
     }
 
     void OnDrawGizmos()
