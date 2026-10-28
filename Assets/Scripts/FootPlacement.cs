@@ -129,6 +129,12 @@ public class FootPlacement : MonoBehaviour
     [SerializeField] float stepUpTimePerMetre = 0.4f;
     // Least clearance over a step up's edge, m, however short the step.
     [SerializeField] float stepUpClearance = 0.08f;
+    // Chance per step up, times drunkAmount, that the foot is careless: it doesn't lift first, but rises and
+    // goes forward together like a step on the level, and its toe may catch the face. A trip, left to physics,
+    // touchdown and the catch steps. The lift-first is what keeps a climbing toe off the riser: without it on
+    // every step, drunk or not, nearly every climb tripped. Every step a little sloppy didn't work: a climb
+    // shrugged off skipping up to half of it, and misjudging the hold's clearance barely mattered.
+    [SerializeField, Range(0f, 1f)] float drunkCarelessStepChance = 0.14f;
 
     [Header("Debug")]
     // Off leaves the foot to StepTester.
@@ -156,6 +162,8 @@ public class FootPlacement : MonoBehaviour
     float stepUpHeld;      // progress spent holding for the real foot to clear a step up
     float stepUpHoldTime;  // the same, s
     bool stepUpCleared;    // the hold is over: the foot cleared, or it waited stepUpMaxHold
+    // This step's stepUpRiseBy and stepUpForwardFrom: a careless step's don't lift first.
+    float riseBy, forwardFrom;
     float stepPeakLift;    // before the step-length cap
     // How far from liftoff the swing crosses a step's face, m; infinity when it doesn't (level or a slope).
     float faceAt = float.PositiveInfinity;
@@ -172,6 +180,10 @@ public class FootPlacement : MonoBehaviour
     // Where this foot's ankle should be this tick: the IK target, this transform.
     public Vector3 AnkleTarget => transform.position;
     public bool IsCrossing => isStepping && isCrossing;
+    // The way the swing travels, from liftoff toward the landing: flat, unit; zero while planted.
+    public Vector3 SwingDirection => isStepping ? (landingPoint - liftoffPoint).Flat().normalized : Vector3.zero;
+    // Where the swing will plant the foot (a ground point); where it is, once planted.
+    public Vector3 LandingPoint => landingPoint;
     // 0 → 1 through the swing; 1 while planted.
     public float SwingProgress => isStepping ? Mathf.Clamp01(stepProgress - stepUpHeld) : 1f;
     public Vector3 GroundPoint => groundPoint;
@@ -195,7 +207,8 @@ public class FootPlacement : MonoBehaviour
     // corner: swinging up a step with the body over it, the toe hangs well below the ankle, and judged by the
     // toe a foot high enough to go on never was.
     float RealSoleHeight => RealAnkle.y - FootGroundOffset;
-    Vector3 RealAnkle => ankle.transform.TransformPoint(ankle.anchor);
+    // Where the physical ankle is: AnkleTarget is where it should be.
+    public Vector3 RealAnkle => ankle.transform.TransformPoint(ankle.anchor);
 
     void Awake()
     {
@@ -620,14 +633,14 @@ public class FootPlacement : MonoBehaviour
         bool clear = ankle == null || RealSoleHeight >= liftoffPoint.y + faceRise + StepUpClearMargin;
         if (stepUp && (clear || stepUpHoldTime >= stepUpMaxHold)) stepUpCleared = true;
         float t = Mathf.Clamp01(stepProgress - stepUpHeld);
-        float travel = stepUp ? SmoothStep(Mathf.InverseLerp(stepUpForwardFrom, 1f, t)) : SmoothStep(t);
+        float travel = stepUp ? SmoothStep(Mathf.InverseLerp(forwardFrom, 1f, t)) : SmoothStep(t);
         if (stepUp && !stepUpCleared)
         {
             float shortOf = (faceAt - ToeAhead - EdgeMargin) / (landingPoint - liftoffPoint).Flat().magnitude;
             if (travel > shortOf)
             {
                 travel = shortOf;
-                if (t >= stepUpRiseBy)
+                if (t >= riseBy)
                 {
                     stepUpHeld += Time.fixedDeltaTime / swingDuration;
                     stepUpHoldTime += Time.fixedDeltaTime;
@@ -648,7 +661,9 @@ public class FootPlacement : MonoBehaviour
         facing = Quaternion.Slerp(liftoffFacing, playerController.Heading, travel);
         Vector3 point = Vector3.LerpUnclamped(liftoffPoint, landingPoint, travel);
         point.y = Mathf.Lerp(liftoffPoint.y, landingPoint.y, HeightProgress(t, travel));
-        float arc = Mathf.Sin(t * Mathf.PI);
+        // Not below 0: sin(π) is a hair under it in floats, and a step up held at t = 1 (stepUpRiseBy 1) took
+        // the square root of that, which is NaN, and so was the whole body from then on.
+        float arc = Mathf.Max(0f, Mathf.Sin(t * Mathf.PI));
         point.y += Mathf.Sqrt(arc) * PeakLift() + arc * Mathf.Min(playerRig.HipSag, MaxSagLift);
         groundPoint = KeepSwingInReach(point, arc);
 
@@ -696,7 +711,7 @@ public class FootPlacement : MonoBehaviour
     {
         if (!CrossesFace) return travel;
         return landingPoint.y > liftoffPoint.y
-            ? SmoothStep(Mathf.Clamp01(t / stepUpRiseBy))
+            ? SmoothStep(Mathf.Clamp01(t / riseBy))
             : SmoothStep(Mathf.InverseLerp(stepDownDescendFrom, 1f, t));
     }
 
@@ -729,6 +744,9 @@ public class FootPlacement : MonoBehaviour
         isStepping = true;
         retargetsInFlight = retarget;
         stepPeakLift = Mathf.Max(0f, stepHeight + Random.Range(-StepHeightVariance, StepHeightVariance));
+        bool careless = Random.value < playerController.DrunkAmount * drunkCarelessStepChance;
+        riseBy = careless ? 1f : stepUpRiseBy;
+        forwardFrom = careless ? 0f : stepUpForwardFrom;
     }
 
     // Points the knee along cross(leg, foot right), flipped forward if it points back. Using the foot's

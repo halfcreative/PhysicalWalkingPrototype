@@ -23,6 +23,7 @@ public class CatchRecorder : MonoBehaviour
     Transform upperArmL, upperArmR, forearmL, forearmR, head;
     ConfigurableJoint hipL, hipR, kneeL, kneeR, ankleL, ankleR;
     Collider soleL, soleR;
+    FootClipSensor clipL, clipR;
 
     // Ground impulse on each foot since the last FixedUpdate.
     Vector3 leftImpulse, rightImpulse;
@@ -84,6 +85,8 @@ public class CatchRecorder : MonoBehaviour
         ankleR = rightFootBody.GetComponent<ConfigurableJoint>();
         soleL = leftFootBody.GetComponent<Collider>();
         soleR = rightFootBody.GetComponent<Collider>();
+        clipL = leftFootBody.GetComponent<FootClipSensor>();
+        clipR = rightFootBody.GetComponent<FootClipSensor>();
     }
 
     // Contact reporting is fixed when a collider pair is created, so a foot already on the ground would
@@ -144,7 +147,8 @@ public class CatchRecorder : MonoBehaviour
             "lGroundX,rGroundX,swayX,swayZ,pelvisRoll,momentumX,momentumY,fallLimit,breach,fallen,pelvisTilt," +
             "momentumCharge,tiltCharge,dropCharge,torsoRoll,lCrossing,rCrossing," +
             "lArmOut,lArmFwd,lElbow,rArmOut,rArmFwd,rElbow,headPitch,headRoll,headYaw," +
-            "lHipX,lHipXTarget,rHipX,rHipXTarget,lKneeX,lKneeXTarget,rKneeX,rKneeXTarget,riseAhead,riseDistance,lGroundY,rGroundY,supportY\n");
+            "lHipX,lHipXTarget,rHipX,rHipXTarget,lKneeX,lKneeXTarget,rKneeX,rKneeXTarget,riseAhead,riseDistance,lGroundY,rGroundY,supportY," +
+            "lClip,rClip,lSwingGap,rSwingGap,lSwingSpeed,rSwingSpeed\n");
     }
 
     void FixedUpdate()
@@ -219,7 +223,11 @@ public class CatchRecorder : MonoBehaviour
                JointRotation(kneeL).AngleAboutX(), Quaternion.Inverse(kneeL.targetRotation).AngleAboutX(),
                JointRotation(kneeR).AngleAboutX(), Quaternion.Inverse(kneeR.targetRotation).AngleAboutX(),
                balanceSensor.RiseAhead, Mathf.Min(balanceSensor.RiseDistance, 9f),
-               leftFoot.GroundPoint.y, rightFoot.GroundPoint.y, balanceSensor.SupportCentre.y);
+               leftFoot.GroundPoint.y, rightFoot.GroundPoint.y, balanceSensor.SupportCentre.y,
+               // FootClip: 0 none, 1 scuff, 2 snag; −1 with no sensor.
+               clipL ? (float)clipL.Clip : -1f, clipR ? (float)clipR.Clip : -1f,
+               clipL ? clipL.SwingGap : 0f, clipR ? clipR.SwingGap : 0f,
+               clipL ? clipL.SwingSpeed : 0f, clipR ? clipR.SwingSpeed : 0f);
 
         if (Time.time - startTime >= duration)
             Write();

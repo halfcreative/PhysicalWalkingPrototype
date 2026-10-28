@@ -2893,6 +2893,7 @@ GameObject:
   - component: {fileID: 882485274423171988}
   - component: {fileID: 4196363898047620453}
   - component: {fileID: 1590101488036042893}
+  - component: {fileID: 837915297722335595}
   m_Layer: 8
   m_Name: Foot_R
   m_TagString: Untagged
@@ -3122,6 +3123,20 @@ ConfigurableJoint:
   m_EnablePreprocessing: 0
   m_MassScale: 1
   m_ConnectedMassScale: 1
+--- !u!114 &837915297722335595
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6414721404050284059}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f6895cbe831155e0ba83d2e64a80019f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FootClipSensor
+  footPlacement: {fileID: 3928006529086975609}
+  snagGap: 0.05
 --- !u!1 &6802412519892764969
 GameObject:
   m_ObjectHideFlags: 0
@@ -4643,6 +4658,7 @@ GameObject:
   - component: {fileID: 7459023015317930062}
   - component: {fileID: 4464663847340008768}
   - component: {fileID: 4607126221180355616}
+  - component: {fileID: 3889056486124499282}
   m_Layer: 8
   m_Name: Foot_L
   m_TagString: Untagged
@@ -4872,6 +4888,20 @@ ConfigurableJoint:
   m_EnablePreprocessing: 0
   m_MassScale: 1
   m_ConnectedMassScale: 1
+--- !u!114 &3889056486124499282
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9171986339879109205}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f6895cbe831155e0ba83d2e64a80019f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FootClipSensor
+  footPlacement: {fileID: 2939301174023753430}
+  snagGap: 0.05
 --- !u!1 &9193362577982348238
 GameObject:
   m_ObjectHideFlags: 0
