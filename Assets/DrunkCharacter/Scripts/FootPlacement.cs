@@ -203,6 +203,11 @@ public class FootPlacement : MonoBehaviour
     Vector3 BodyVelocity => balanceSensor.CenterOfMassVelocity.Flat();
     bool CrossesFace => !float.IsPositiveInfinity(faceAt);
     float FootGroundOffset => playerRig.FootGroundOffset;
+    // A planted leg feels the ghost hips' balance shift; a swinging leg must not, or it lands off by it, so its
+    // target carries the shift back. Not while a step up is held short of its face: the shift is added past
+    // that hold, and up stairs, where the shift is largest, it threw the target up to 8 cm ahead at liftoff
+    // and the toe into the riser.
+    Vector3 SwingShift => isStepping && (!IsSteppingUp || stepUpCleared) ? playerRig.GhostHipOffset : Vector3.zero;
     // The physical sole's height under the ankle, as the ground point is the target's. Not the foot's lowest
     // corner: swinging up a step with the body over it, the toe hangs well below the ankle, and judged by the
     // toe a foot high enough to go on never was.
@@ -257,10 +262,8 @@ public class FootPlacement : MonoBehaviour
         if (isStepping)
             AdvanceSwing();
 
-        // A planted leg feels the ghost hips' balance shift; a swinging leg must not, or it lands off by it.
-        Vector3 ikShift = isStepping ? playerRig.GhostHipOffset : Vector3.zero;
         transform.SetPositionAndRotation(
-            groundPoint + Vector3.up * FootGroundOffset + ikShift,
+            groundPoint + Vector3.up * FootGroundOffset + SwingShift,
             Quaternion.FromToRotation(Vector3.up, groundNormal) * facing);
 
         PoseKneeHint();
@@ -694,7 +697,7 @@ public class FootPlacement : MonoBehaviour
     // untouched.
     Vector3 KeepSwingInReach(Vector3 point, float arc)
     {
-        Vector3 offset = Vector3.up * FootGroundOffset + playerRig.GhostHipOffset;
+        Vector3 offset = Vector3.up * FootGroundOffset + SwingShift;
         Vector3 hip = ghostThigh.position;
         Vector3 ankle = point + offset;
 

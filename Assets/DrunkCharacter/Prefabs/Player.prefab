@@ -1321,7 +1321,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   balanceSensor: {fileID: 5479223553370809772}
   pelvis: {fileID: 2552698114729887385}
-  drunkAmount: 0
+  drunkAmount: 1
   swayMagnitude: 1.5
   swayRotationRate: 90
   swayResponseSpeed: 3
@@ -2631,6 +2631,7 @@ MonoBehaviour:
   stepUpMaxHold: 0.6
   stepUpTimePerMetre: 0.4
   stepUpClearance: 0.08
+  drunkCarelessStepChance: 0.14
   autoStep: 1
   logSteps: 0
 --- !u!1 &6236681371967397598
@@ -3137,6 +3138,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FootClipSensor
   footPlacement: {fileID: 3928006529086975609}
   snagGap: 0.05
+  snagSpeed: 0.1
+  snagTime: 0.1
 --- !u!1 &6802412519892764969
 GameObject:
   m_ObjectHideFlags: 0
@@ -4902,6 +4905,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FootClipSensor
   footPlacement: {fileID: 2939301174023753430}
   snagGap: 0.05
+  snagSpeed: 0.1
+  snagTime: 0.1
 --- !u!1 &9193362577982348238
 GameObject:
   m_ObjectHideFlags: 0
@@ -4984,5 +4989,6 @@ MonoBehaviour:
   stepUpMaxHold: 0.6
   stepUpTimePerMetre: 0.4
   stepUpClearance: 0.08
+  drunkCarelessStepChance: 0.14
   autoStep: 1
   logSteps: 0

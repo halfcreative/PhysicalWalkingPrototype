@@ -1,11 +1,15 @@
-using Unity.Cinemachine;
+using System;
 using Unity.Netcode;
 using UnityEngine;
 
 // Splits a character between host and clients. The host simulates every character from its owner's
 // CharacterInput. Clients run none of the simulation: their bodies are kinematic copies placed by
-// NetworkPose. The owner gets the local input, the camera and the HUD; a client owner's HUD shows the
+// NetworkPose. The owner gets the local input, the camera target and the HUD; a client owner's HUD shows the
 // readout the host sends it. StepTester only works on the host.
+//
+// The game hooks in here, not into the scene: a camera follows CameraTarget once LocalPlayerSpawned fires
+// (FollowLocalPlayer does that for a CinemachineCamera), and IsFallen, FallenChanged and DrunkAmount read
+// the same on every side. Drunkenness is set on the host, with PlayerController.SetDrunkAmount.
 [RequireComponent(typeof(PlayerController), typeof(LocalPlayerInput), typeof(PlayerCameraTarget))]
 public class NetworkPlayer : NetworkBehaviour
 {
@@ -13,6 +17,8 @@ public class NetworkPlayer : NetworkBehaviour
     [SerializeField] Behaviour[] simulation;
 
     readonly NetworkVariable<bool> isFallen = new();
+    // The host's PlayerController.DrunkAmount, copied each network tick; it's only sent when it changes.
+    readonly NetworkVariable<float> drunkAmount = new();
 
     PlayerController playerController;
     BalanceController balanceController;
@@ -27,8 +33,16 @@ public class NetworkPlayer : NetworkBehaviour
     // The latest HUD readout from the host, on a client owner.
     BalanceReadout readout;
 
-    // Whether this character is down, on every side.
+    // This instance's own character while it's spawned, and when it spawns.
+    public static NetworkPlayer Local { get; private set; }
+    public static event Action<NetworkPlayer> LocalPlayerSpawned;
+
+    // Whether this character is down, on every side, and when that changes: true on a fall, false on a reset.
     public bool IsFallen => isFallen.Value;
+    public event Action<bool> FallenChanged;
+    public float DrunkAmount => drunkAmount.Value;
+    // Where a third-person camera should follow and look; placed only on the owner.
+    public Transform CameraTarget => cameraTarget.Target;
 
     void Awake()
     {
@@ -50,10 +64,12 @@ public class NetworkPlayer : NetworkBehaviour
         foreach (Behaviour component in simulation)
             component.enabled = IsServer;
 
+        isFallen.OnValueChanged += OnFallenChanged;
         if (IsServer)
         {
             playerController.Fell += OnFell;
             playerController.CharacterReset += OnCharacterReset;
+            NetworkManager.NetworkTickSystem.Tick += CopyDrunkAmount;
             if (!IsOwnedByServer) NetworkManager.NetworkTickSystem.Tick += SendReadout;
         }
         else
@@ -77,12 +93,15 @@ public class NetworkPlayer : NetworkBehaviour
 
         if (!IsOwner) return;
         localInput.ResetHandler = RequestReset;
-        FollowWithCamera();
         if (!IsServer) NetworkManager.NetworkTickSystem.Tick += SendInput;
+        Local = this;
+        LocalPlayerSpawned?.Invoke(this);
     }
 
     public override void OnNetworkDespawn()
     {
+        if (Local == this) Local = null;
+        isFallen.OnValueChanged -= OnFallenChanged;
         if (IsServer)
         {
             playerController.Fell -= OnFell;
@@ -91,24 +110,21 @@ public class NetworkPlayer : NetworkBehaviour
 
         NetworkTickSystem ticks = NetworkManager.NetworkTickSystem;
         if (ticks == null) return;
+        ticks.Tick -= CopyDrunkAmount;
         ticks.Tick -= SendReadout;
         ticks.Tick -= SendInput;
     }
 
-    void FollowWithCamera()
-    {
-        CinemachineCamera virtualCamera = FindAnyObjectByType<CinemachineCamera>();
-        if (virtualCamera == null) return;
-        virtualCamera.Follow = cameraTarget.Target;
-        virtualCamera.LookAt = cameraTarget.Target;
-    }
+    void OnFallenChanged(bool _, bool fallen) => FallenChanged?.Invoke(fallen);
+
+    void CopyDrunkAmount() => drunkAmount.Value = playerController.DrunkAmount;
 
     // --- Input: owning client → host, once per network tick --------------------------------------------
 
     void SendInput() => SubmitInputRpc(++lastSentInput, playerController.CurrentInput);
 
     // Unreliable: the input is absolute, so a lost packet is replaced by the next one.
-    [Rpc(SendTo.Server, Delivery = RpcDelivery.Unreliable, RequireOwnership = true)]
+    [Rpc(SendTo.Server, Delivery = RpcDelivery.Unreliable, InvokePermission = RpcInvokePermission.Owner)]
     void SubmitInputRpc(uint sequence, CharacterInput input)
     {
         if (sequence <= lastAppliedInput) return;
@@ -147,7 +163,7 @@ public class NetworkPlayer : NetworkBehaviour
         else RequestResetRpc();
     }
 
-    [Rpc(SendTo.Server, RequireOwnership = true)]
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
     void RequestResetRpc() => ResetOnHost();
 
     void ResetOnHost()
