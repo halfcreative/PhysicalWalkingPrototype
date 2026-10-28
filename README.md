@@ -1,5 +1,6 @@
 # Physical Walking Prototype
 
+## Overview
 I want a playable character with the following components:
 
 - Active Ragdoll
@@ -7,6 +8,8 @@ I want a playable character with the following components:
 - Balance System
 - Multiplayer Ready
   - Players must be able to bump into and knock eachother around
+- Controller Support
+  - Players must be able to use a controller to play the game
 
 In addition, I would like these features:
 - Drunkness Slider
@@ -17,3 +20,5 @@ finally, I would like to create and "animate" the character with these character
   - The character model should look like its made of materials like clay, or other commonly used materials for claymation films
 - Big Head, Hands and Feet.
   - I want these to be easily readable
+
+This will all come together for a player prefab that can be easily imported into a complete game.
