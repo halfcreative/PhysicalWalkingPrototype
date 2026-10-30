@@ -1,1241 +1,1384 @@
-# Stop-Motion Claymation Look — Master Design Document
+# Stop-Motion Look — Guidebook
 
-**Project:** Physical Walking Prototype (drunk active-ragdoll character). Moves into the main game repo with the character.  
-**Version:** 0.5, 2026-10-29. Revised for readability, codebase accuracy, and expanded architectural pathways (see [Section 17](#17-review-record)).  
-**Owner of every look decision and asset:** Alan. This document guides implementation; it contains exact specifications, architecture, and values rather than copy-paste scripts.
+**Project:** Physical Walking Prototype, the drunk active-ragdoll character. This guide moves to the game repo
+with the character.
+**Version:** 0.6, 2026-10-29.
+**Owner:** Alan makes every look decision and every asset. This guide explains the look, specifies the systems
+and walks through building them. It gives exact values and steps, not finished code.
 
----
+## Contents
 
-## Table of Contents
-
-- [How to Use This Document](#how-to-use-this-document)
-- [Units, Proportions, and Pixel Scale](#units-proportions-and-pixel-scale)
-- [Timeline and Phase Overview](#timeline-and-phase-overview)
-- **Part I — Principles and Research**
-  - [1. Executive Summary](#1-executive-summary)
-  - [2. Core Look Principles](#2-core-look-principles)
-  - [3. What Makes Stop Motion Read (and Lessons from Shipped Games)](#3-what-makes-stop-motion-read-and-lessons-from-shipped-games)
-  - [4. Key Architectural Decisions & Viable Alternatives](#4-key-architectural-decisions--viable-alternatives)
-- **Part II — System & Art Design**
-  - [5. Puppet & Clock Architecture](#5-puppet--clock-architecture)
-  - [6. Body Construction & Asset Creation Pathways](#6-body-construction--asset-creation-pathways)
-  - [7. Readability & Physical Comedy (Face, Voice, Hands, Feet, Dents, Get-Up, Cosmetics)](#7-readability--physical-comedy)
-  - [8. The Clay Surface Shader (`SG_Clay`)](#8-the-clay-surface-shader-sg_clay)
-  - [9. Comfort, Accessibility, and Photosensitivity](#9-comfort-accessibility-and-photosensitivity)
-  - [10. World Lighting, Camera, and Post-Processing](#10-world-lighting-camera-and-post-processing)
-- **Part III — Step-by-Step Build Plan**
-  - [Phase 1 — Stop-Motion Prototype & Blind Playtest (30–40 h)](#phase-1--stop-motion-prototype--blind-playtest-3040-h-4-weeks)
-  - [Phase 2 — Physical Maquette & Style Frame (12–18 h)](#phase-2--physical-maquette--style-frame-1218-h-2-weeks)
-  - [Phase 3 — Look-Dev Scene & Clay Material (22–32 h)](#phase-3--look-dev-scene--clay-material-2232-h-3-weeks)
-  - [Phase 4A — Readability Prototype: Face, Voice, Hands, Feet (25–35 h)](#phase-4a--readability-prototype-face-voice-hands-feet-2535-h-3-weeks)
-  - [Phase 4B — Impacts, Get-Up Styles & Physical Cosmetics (60–85 h)](#phase-4b--impacts-get-up-styles--physical-cosmetics-6085-h-79-weeks)
-  - [Phase 5 — Learn Blender & Graded Exercises (30–45 h)](#phase-5--learn-blender--graded-exercises-3045-h-4-weeks)
-  - [Phase 6 — Sculpt the 16 Body Parts (40–70 h, or 15–30 h via Fast-Track)](#phase-6--sculpt-the-16-body-parts-4070-h-6-weeks)
-  - [Phase 7 — Sculpt Face Pieces, Hands, Shoes & Cosmetics (24–36 h)](#phase-7--sculpt-face-pieces-hands-shoes--cosmetics-2436-h-34-weeks)
-  - [Phase 8 — Assemble, Fix Poses & Match Style Frame (12–20 h)](#phase-8--assemble-fix-poses--match-style-frame-1220-h-2-weeks)
-  - [Phase 9 — World Set Lighting, Camera & Comfort Menu (18–26 h)](#phase-9--world-set-lighting-camera--comfort-menu-1826-h-2-weeks)
-  - [Phase 10 (Optional) — Continuous Skinned Body (60–100 h)](#phase-10-optional--continuous-skinned-body-60100-h)
-  - [12. Playtest & Verification Protocols](#12-playtest--verification-protocols)
-  - [13. Master Dials Reference Table](#13-master-dials-reference-table)
-  - [14. Learning & Tool Resources](#14-learning--tool-resources)
-- **Part IV — Project Records**
-  - [15. Decision Log](#15-decision-log)
-  - [16. Risks, Mitigations & Verified Engine Facts](#16-risks-mitigations--verified-engine-facts)
-  - [17. Review Record](#17-review-record)
+- [How to use this guide](#how-to-use-this-guide) · [Units and scale](#units-and-scale) ·
+  [Timeline](#timeline)
+- **[Part I — The look](#part-i--the-look)**
+  - [1. Summary](#1-summary)
+  - [2. Principles](#2-principles)
+  - [3. What makes stop motion read](#3-what-makes-stop-motion-read)
+- **[Part II — Design](#part-ii--design)**
+  - [4. The character today](#4-the-character-today)
+  - [5. Puppet and clock](#5-puppet-and-clock)
+  - [6. Body construction](#6-body-construction)
+  - [7. Readability](#7-readability): eyes, mouth, hands, shoes, player identity
+  - [8. Physical comedy](#8-physical-comedy): dents, getting up, cosmetics
+  - [9. The clay material (`SG_Clay`)](#9-the-clay-material-sg_clay)
+  - [10. Comfort settings](#10-comfort-settings)
+  - [11. World, camera and post-processing](#11-world-camera-and-post-processing)
+- **[Part III — Build plan](#part-iii--build-plan)**
+  - [Phase 1 — Stop-motion prototype and playtest (30–40 h)](#phase-1--stop-motion-prototype-and-playtest-3040-h-4-weeks)
+  - [Phase 2 — Maquette and style frame (12–18 h)](#phase-2--maquette-and-style-frame-1218-h-2-weeks)
+  - [Phase 3 — Look-dev scene and clay material (22–32 h)](#phase-3--look-dev-scene-and-clay-material-2232-h-3-weeks)
+  - [Phase 4A — Readability (25–35 h)](#phase-4a--readability-2535-h-3-weeks)
+  - [Phase 4B — Dents, getting up, cosmetics (60–85 h)](#phase-4b--dents-getting-up-cosmetics-6085-h-79-weeks)
+  - [Phase 5 — Learn Blender (30–45 h)](#phase-5--learn-blender-3045-h-4-weeks)
+  - [Phase 6 — The body parts (40–70 h)](#phase-6--the-body-parts-4070-h-6-weeks-1530-h-on-a-fast-track)
+  - [Phase 7 — Face, hands, shoes and cosmetics (24–36 h)](#phase-7--face-hands-shoes-and-cosmetics-2436-h-34-weeks)
+  - [Phase 8 — Assemble and tune (12–20 h)](#phase-8--assemble-and-tune-1220-h-2-weeks)
+  - [Phase 9 — World, camera and settings (18–26 h)](#phase-9--world-camera-and-settings-1826-h-2-weeks)
+  - [Phase 10 (optional) — One skinned body (60–100 h)](#phase-10-optional--one-skinned-body-60100-h)
+  - [12. Tests](#12-tests)
+  - [13. Dials](#13-dials)
+  - [14. Resources](#14-resources)
+- **[Part IV — Records](#part-iv--records)**
+  - [15. Decision log](#15-decision-log)
+  - [16. Risks, open questions and checked facts](#16-risks-open-questions-and-checked-facts)
+  - [17. Review record](#17-review-record)
   - [18. Sources](#18-sources)
 
----
+## How to use this guide
 
-## How to Use This Document
+- **Part I** explains the look: what makes stop motion read, and the rules this character follows.
+- **Part II** specifies each system. Read the matching section before starting a phase.
+- **Part III** is the build plan. Work the phases in order. Each step has an estimate in focused hours. Tick
+  every **Done when** box before starting the next phase.
+- **Part IV** holds the decision log, risks, review history and sources.
+- **Log it.** When a step says "log it", add a dated row to section 15. A logged decision overrides this guide.
+- **Dials.** Starting values live in section 13. Change them there and log why.
+- **Play mode.** Never save a script while play mode is running; Unity stops play mode.
 
-- **Document Structure:**
-  - **Part I** defines the artistic principles, industry research, and high-level architectural choices.
-  - **Part II** specifies the technical and visual design of every subsystem.
-  - **Part III** is the sequential build plan, test protocols, and tuning dials.
-  - **Part IV** tracks project decisions, technical risks, review history, and reference sources.
-- **Working the Steps:** Execute phases and steps in order. Each step includes an estimate in **focused hours**, and each phase ends with a **Done when** checklist. Tick every box before moving to the next phase.
-- **Logging Decisions:** Whenever a step instructs you to *"record in Section 15"*, add a dated row to the [Decision Log](#15-decision-log) with your choice and rationale. A logged decision overrides any default in this document.
-- **Tuning Defaults:** Starting values live in the [Master Dials Table (Section 13)](#13-master-dials-reference-table). Update that table when you re-tune a value and log why.
-- **Unity Play Mode Rule:** Never save a C# script while Unity Play Mode is running; recompiling during play mode stops the session and corrupts non-reloaded static state.
+## Units and scale
 
----
+- Sizes are in game metres unless marked "maquette".
+- **Character:** 1.85 m tall, 62 kg. The head is a 0.36 m sphere, forearms are 0.09 × 0.30 m capsules, hands
+  are 0.11 m spheres, and feet are 0.16 × 0.10 × 0.30 m boxes (width × height × length).
+- **Maquette:** 20 cm tall, so the scale is 1 : 9.25. Maquette size × 9.25 = game size.
+- **Pixels.** With the camera 5 m behind the character, a 60° vertical field of view and 1080p:
 
-## Units, Proportions, and Pixel Scale
+  | Distance | Who | 1 pixel covers | Character height |
+  |---|---|---|---|
+  | 5 m | your own character | 5.4 mm | 345 px |
+  | 10 m | a nearby player | 11 mm | 170 px |
+  | 15 m | a player across a room | 16 mm | 115 px |
 
-- **Game Metres by Default:** Every measurement in this document is in **game metres (m)** or **centimetres (cm)** at game scale unless explicitly labelled **"maquette"**.
-- **Character Dimensions (`Player.prefab`):**
-  - **Total standing height:** `1.85 m` (foot soles at `y = 0.00 m`, head crown at `y = 1.85 m`), total mass `62.0 kg`.
-  - **Key primitives:** Head is a `0.36 m` sphere; forearms are `0.09 × 0.30 m` capsules; hands are `0.11 m` spheres; feet are `0.16 × 0.10 × 0.30 m` boxes (`width × height × length`).
-- **Maquette Scale (`1 : 9.25`):** The physical maquette is **20 cm tall**. Multiply any maquette measurement by **`9.25`** to get the game size (or divide game size by `9.25` to get maquette size).
-- **Screen-Space Readability at 1080p:** With the gameplay camera `4.5–5.0 m` behind the character at a `60°` vertical field of view, **1 screen pixel** covers:
+  Anything smaller than about 1 pixel at the distance where it must read is invisible. That is why the face,
+  hands and feet are oversized to read at 10–15 m, while fingerprints only matter under 5 m.
 
-| Viewing Distance | Who You Are Looking At | 1 Pixel Covers | Character Height on Screen |
+## Timeline
+
+At 9 focused hours a week, new to 3D art. One person does everything, so phases run one after another.
+
+| Phase | What | Hours | Weeks |
 |---|---|---|---|
-| **5 m** | Your own character | **~5.4 mm** | ~345 px |
-| **10 m** | Nearby players | **~11 mm** | ~170 px |
-| **15 m** | Players across a room | **~16 mm** | ~115 px |
+| 1 | Clock, puppet, key poses, debug window, blind playtest | 30–40 | 4 |
+| — | **Gate:** keep pose holds only if a stepped variant passes the playtest (12.1) | | |
+| 2 | References, maquette, style frame | 12–18 | 2 |
+| 3 | Look-dev scene and clay material on the primitives | 22–32 | 3 |
+| 4A | Face, voice-driven mouth, hands and feet on placeholders; readability test | 25–35 | 3 |
+| 4B | Dents, get-up styles, knock-off cosmetics on placeholders | 60–85 | 8 |
+| 5 | Learn Blender, five graded exercises | 30–45 | 4 |
+| 6 | Make the body parts | 40–70 (15–30 fast track) | 6 (2–3) |
+| 7 | Face pieces, hand poses, shoes, cosmetics | 24–36 | 3–4 |
+| 8 | Assemble, fix gaps, match the style frame | 12–20 | 2 |
+| 9 | Set lighting, anti-aliasing, settings menu, flash check | 18–26 | 2 |
+| 10 | Optional: one continuous skinned body | 60–100 | 7–11 |
 
-> [!IMPORTANT]
-> **The 1-Pixel Readability Rule:** Any visual feature smaller than ~1 pixel at the distance where it must be understood is invisible. Expressive features (eyes, mouths, hands, feet) are intentionally oversized and high-contrast so they read at **10–15 m**, while surface details (fingerprints, tool marks) are for close-ups (**< 5 m**).
+**Phases 1–9: about 275–405 hours, roughly 37 weeks.** With a phase 6 fast track (section 6.2): about
+250–365 hours.
 
----
-
-## Timeline and Phase Overview
-
-Estimates assume **9 focused hours per week** (evenings and weekends) for a developer who is new to 3D art. Phases run sequentially because one person builds both code and art.
-
-```mermaid
-flowchart LR
-    subgraph Motion["1. Motion Gate (4w)"]
-        P1["Phase 1: Clock, Puppet & Playtest"]
-    end
-    subgraph Design["2. Look & Mechanics (16w)"]
-        P2["Phase 2: Maquette & Style Frame (2w)"]
-        P3["Phase 3: LookDev & Clay Shader (3w)"]
-        P4A["Phase 4A: Face, Voice, Hands, Feet (3w)"]
-        P4B["Phase 4B: Dents, Get-Up, Cosmetics (8w)"]
-    end
-    subgraph Art["3. Blender & Sculpting (13w)"]
-        P5["Phase 5: Learn Blender (4w)"]
-        P6["Phase 6: Sculpt 16 Body Parts (6w)"]
-        P7["Phase 7: Sculpt Face, Hands, Cosmetics (3w)"]
-    end
-    subgraph Finish["4. Polish & World (4w)"]
-        P8["Phase 8: Assemble & Tune (2w)"]
-        P9["Phase 9: World, Camera & Settings (2w)"]
-    end
-    P1 --> P2 --> P3 --> P4A --> P4B --> P5 --> P6 --> P7 --> P8 --> P9
-```
-
-| Phase | Deliverables | Focused Hours | Weeks (at 9 h/wk) |
-|---|---|---|---|
-| **1** | Stop-motion clock, visual puppet hierarchy, network key-pose signals, debug window, blind playtest | 30–40 h | 4 w |
-| **Gate** | **Continue stepped holds only if a stepped variant passes the Section 12.1 playtest** | — | — |
-| **2** | Reference library, physical maquette at ragdoll proportions, lit tabletop style frame | 12–18 h | 2 w |
-| **3** | `LookDev` scene, `SG_Clay` master material on primitives, lighting & scale-look decisions | 22–32 h | 3 w |
-| **4A** | Placeholder face, voice-driven replacement mouth, hands, feet, contact squash, readability test | 25–35 h | 3 w |
-| **4B** | Shader impact dents, get-up styles (jump cut, invisible hand, re-sculpt), physical cosmetics (on placeholders) | 60–85 h | 7–9 w |
-| **5** | Blender courses and 5 graded sculpting exercises | 30–45 h | 4 w |
-| **6** | Sculpt, vertex-paint, decimate, and export the 16 body parts *(see Fast-Track options in Section 6.2)* | 40–70 h *(15–30 h fast-track)* | 6 w *(2–3 w)* |
-| **7** | Sculpt replacement mouths, eyelids, hand poses, shoes, and cosmetics; re-verify readability | 24–36 h | 3–4 w |
-| **8** | Pose gap fixes, dial tuning, style-frame overlay check, full-character turntable | 12–20 h | 2 w |
-| **9** | Set lighting in `TestScene`, MSAA/Volume setup, player comfort menu, EA IRIS flash check | 18–26 h | 2 w |
-| **10** | *(Optional)* Continuous skinned body — a separate follow-on project if segmented seams bother you | 60–100 h | 7–11 w |
-
-**Total for Phases 1–9:** **275–405 hours** (~37 weeks / 8½ months at 9 h/week, or ~220–320 hours if using a Phase 6 sculpting fast-track).
-
-> [!TIP]
-> **Modular Scheduling:**
-> - **Phase 1 comes first** because it tests the riskiest question (*does stepped motion feel good to play?*) before spending a single hour on 3D art.
-> - **The Phase 1 Gate:** If no stepped variant passes [Section 12.1](#121-motion-playtest-phase-1), disable pose holds and record it in [Section 15](#15-decision-log). Phases 2–9 still deliver the full claymation aesthetic at 60+ fps (just as *Harold Halibut* did).
-> - **Phase 4B is modular:** Its three features (dents, get-up styles, cosmetics) are independent and run on primitive placeholders. Any of them can be deferred until after Phase 8 without blocking the art pipeline.
+- **Phase 1 comes first** because it answers the riskiest question, whether stepped motion plays well, before
+  any art.
+- **The gate.** If no stepped variant passes, turn pose holds off and log it. Phases 2–9 still give the clay
+  look; Harold Halibut shipped clay characters without stepped motion.
+- **Phase 4B's three blocks are independent.** Any of them can wait until after phase 8.
 
 ---
 
-# Part I — Principles and Research
+# Part I — The look
 
-## 1. Executive Summary
+## 1. Summary
 
-The character becomes a hand-crafted plasticine puppet while its underlying 100 Hz active-ragdoll physics remains completely untouched:
+The character becomes a plasticine puppet. Its 100 Hz physics doesn't change.
 
-1. **Decoupled Visual Puppet:** A separate visual hierarchy (`Puppet`) copies the physics ragdoll's pose only on the ticks ("beats") of a shared `StopMotionClock`, holding still between beats just like a physical puppet between camera exposures.
-2. **Animator-Chosen Key Poses:** Gameplay sensors (`FootPlacement`, `HandGrab`, `PlayerController`, `ImpactSensor`) request an immediate beat—plus an extra beat of hold—on key physical moments (foot plant, grab, stumble start, impact, direction reversal). Held frames land on expressive extremes rather than arbitrary mid-swing in-betweens.
-3. **Long-Range Readability:** Face pieces, mitten hands, and shoes are oversized and high-contrast so players can read gazes, grips, foot plants, and who is speaking over proximity voice at up to **15 m**.
-4. **Tactile Clay Surface & Physical Comedy:** Sculpted asymmetry, thumbprints, an oily clear-coat sheen over a matte subsurface base, motion-scaled surface "boil" on handled limbs, shader-driven impact dents, stop-motion get-up styles, and knock-off physical hats sell the physical medium.
-5. **Player Comfort First:** Every stop-motion layer is an independent dial with an "Off" position exposed in player settings.
+1. **A separate puppet.** A visual copy of the body (`Puppet`) copies the ragdoll's pose only on the beats of
+   a shared clock, 12 a second, and holds still in between, like a puppet between camera exposures.
+2. **Key poses.** Foot plants, grabs, stumbles, impacts and reversals force a beat at once and hold it one beat
+   longer, so the held frames are the extremes.
+3. **Readable at a distance.** An oversized, high-contrast face, mitten hands and shoes show gaze, grips, steps
+   and who is talking at up to 15 m.
+4. **Clay.** Thumb marks, fingerprints, an oily sheen over a matte base, boil on the parts that moved, dents
+   from hard hits, staged get-ups and hats that fall off.
+5. **Comfort.** Every stop-motion effect has its own setting, with an Off.
 
----
+## 2. Principles
 
-## 2. Core Look Principles
+Check every choice against these. Change one only by logging why.
 
-Every technical and artistic choice is checked against these 12 principles. Only change a principle by logging the rationale in [Section 15](#15-decision-log).
+1. **Physics never steps.** The simulation and joint drives run every tick; only the drawn puppet holds.
+2. **The camera never steps.** It follows the smooth physics at the full frame rate.
+3. **Hold the poses that matter.** Plants, grabs, stumbles, impacts and reversals get a beat and an extra hold.
+4. **Clay before judging steps.** Holds on smooth primitives look like lag. Judge the rate again once the clay
+   material is on (phase 3).
+5. **Imperfect, not random.** Chatter is a small pose error on parts that moved. The beat stays rhythmic,
+   because rhythm sells slapstick.
+6. **Clay remembers.** Squashes and dents last several beats. Boil shows only on parts that moved.
+7. **Readable at 15 m.** Face, hands and feet are exaggerated, with at least 30 points of value contrast.
+   Fingerprints fade out by 8 m.
+8. **Visible voice.** You can tell who is talking at any distance you can hear them.
+9. **Identity by hue.** Clothing hue and value tell players apart, even in greyscale and without a hat.
+10. **Comedy stays clay.** Hits dent, get-ups look staged by an animator, hats are real physics props.
+11. **Comfort is a setting.** Each effect can be turned down or off. Flicker never exceeds ±3% luminance.
+12. **Your hand is in it.** Proportions, asymmetry, prints and palette come from your maquette, not asset
+    packs.
 
-1. **Physics Never Steps:** The 100 Hz physics simulation and joint drives run continuously; only the rendered puppet holds.
-2. **The Camera Never Steps:** The gameplay camera follows the smooth physics center of mass at full monitor refresh rate.
-3. **Hold the Poses That Matter:** Foot plants, grabs, stumbles, impacts, and reversals trigger an immediate beat and an extra hold beat.
-4. **Hand-Made Before Stepped:** Stepped holds on smooth CG primitives look like framerate lag. Judge stepped motion fairly only once the clay surface is active (Phase 3).
-5. **Imperfect, Not Random:** Puppet "chatter" is a subtle per-part spatial pose error when handled. Clock timing stays rhythmic because rhythm sells physical slapstick.
-6. **Clay Remembers:** Landing squashes and impact dents persist across beats until "re-sculpted." Surface boil only appears on limbs that actually moved.
-7. **Readable at Play Distance (15 m):** Face, hands, and feet use exaggerated proportions and ≥ 30–50% luminance contrast. Fine fingerprints fade out beyond 8 m.
-8. **Visible Voice:** You can tell who is talking by their replacement mouth shapes at any distance where their proximity voice is audible.
-9. **Instant Player Identity:** Every player is identifiable at a glance by clothing hue and luminance value—even in greyscale, and even after their hat is knocked off.
-10. **Physical Comedy Stays Clay:** Hard impacts dent the mesh; getting up looks staged by an animator; loose hats and glasses are real grabbable physics props.
-11. **Comfort is a Setting:** Every stepped or flickering effect can be toned down or switched off individually. Luminance flicker never exceeds `±3%` (well below the `10%` photosensitivity flash threshold).
-12. **Alan's Hand is in It:** Proportions, asymmetry, thumbprints, and colour palette come from Alan's physical maquette rather than generic asset packs.
+## 3. What makes stop motion read
 
----
-
-## 3. What Makes Stop Motion Read (and Lessons from Shipped Games)
-
-### 3.1 The Nine Visual Layers of Clay Stop Motion
-
-| Layer | What Happens Visually | Production Evidence & Design Target |
+| Layer | What you see | Target here |
 |---|---|---|
-| **1. Pose Holds** | The visual pose updates on discrete beats and holds rigid in between. | Classic TV clay (*Morph*, *Gumby*) shoots "on twos" (12 fps / 12 bps). Feature films mix ones (24 bps) and twos. *Spider-Verse* found holds of 3+ frames (≤ 8 bps) begin to feel choppy in fast action. |
-| **2. Uneven Spacing (Chatter)** | Each moved limb has a tiny, non-accumulating positional/rotational error per beat where the animator's fingers nudged it. | Pure uniform sampling of a smooth curve just looks like low framerate. Micro-gauge error (`±0.75°`, `±4 mm`) gives the human hand away. |
-| **3. Chosen Key Poses** | Contacts, stumbles, grabs, and reversals force a beat and hold 1 beat longer. | *Guilty Gear Xrd* proved stepped 3D characters feel responsive at 60 fps when the held poses hit the exact keyframes of contact and impact. |
-| **4. Zero Motion Blur / Zero TAA** | Every frame is a razor-sharp still photograph. | *Spider-Verse*: *"If you stop on any frame in the movie, it's solid, sharp."* Temporal anti-aliasing (TAA) ghosts stepped frames together and must be disabled. |
-| **5. Tactile Clay Surface** | Thumb facets, fingerprint ridges, waxy subsurface scatter, oily fingerprint sheen, and dust specks. | Shorts (*Morph*, Adam Elliot) embrace heavy prints; Aardman features smooth most prints out except at joints. Our shader dial spans both. |
-| **6. Motion-Driven Boil** | Fingerprints and subtle surface lumps shift only on parts the animator just touched. | Global timer boil looks like animated wallpaper. Scaling boil by per-part displacement (`_BoilMotion`) keeps stationary limbs still while moving limbs shimmer. |
-| **7. Moving Holds (Idle)** | An idle puppet still has a subtle stepped breathing rock. | Without a moving hold, a stepped character looks completely frozen like a paused video when standing still. |
-| **8. Exposure Flicker** | Tiny frame-to-frame brightness shifts from studio lamps and aperture variance. | `±1%` luminance (`±0.0144 EV`) reads as photographed film; clamped in code to `±3%` (`±0.0426 EV`) and **Off** by default for accessibility. |
-| **9. Studio Set Scale** | Close spot lamps with steep inverse-square falloff, warm 3200 K key light, and optional shallow depth of field. | Shallow bokeh screams "20 cm tabletop miniature"; deep focus reads as a full-scale set. Tested side-by-side in Phase 3 Step 9. |
+| Holds | The pose changes on beats and stays still between them. | 12 beats a second ("on twos", as in Morph and Gumby). Spider-Verse found holds of 3 frames or more (8 a second and below) choppy in fast action. |
+| Chatter | Each moved part is slightly off each beat, where the animator's fingers touched it. | Up to 0.75° and 4 mm per beat, never adding up. Even sampling alone just reads as a low frame rate. |
+| Key poses | Contacts and reversals are the held frames. | Guilty Gear Xrd's stepped 3D characters feel responsive at 60 fps because the holds land on contacts. |
+| No blur | Every frame is a sharp photo. | No motion blur and no TAA, which blends beats together. |
+| Surface | Thumb facets, prints, a waxy base, an oily sheen, dust. | A dial from heavy prints (Morph, Adam Elliot) to smooth (Aardman features). |
+| Boil | The surface shifts only where the animator touched. | Boil scaled by each part's movement. A global timer looks like animated wallpaper. |
+| Moving hold | An idle puppet still rocks slightly. | A small stepped breathing motion, so standing still doesn't look paused. |
+| Flicker | Small exposure changes between frames. | ±1% luminance, Off by default, capped at ±3%. |
+| Set scale | Close lamps, a warm key light, maybe shallow focus. | Shallow focus says tabletop miniature; deep focus says full-size set. Compared in phase 3. |
 
-### 3.2 Lessons from Games That Shipped (or Cut) Stepped Motion
+### Lessons from games
 
-- **Harold Halibut** *(Slow Bros, Unity — photogrammetry-scanned physical puppets):* Experimented with stepping character animations at 12 fps and **cut it before launch**. The developers explained on Steam: *"Since camera movements still need to be very fluid, we felt the effect was more distracting than pleasing."*
-- **South of Midnight** *(Compulsion Games, Unreal 4):* Shipped stepped character motion at 60 fps with **per-character tuning** and a **gameplay toggle** after playtests showed heavy-handed stepping induced motion sickness in a subset of players.
-- **Spider-Verse** *(Sony Pictures Imageworks):* Simulated secondary physics (cloth, hair) on ones while characters stepped on twos, because stepping raw physics simulations directly causes chaotic visual snapping.
+- **Harold Halibut** (Unity, scanned real puppets) tried 12 fps character motion and cut it: "Since camera
+  movements still need to be very fluid, we felt the effect was more distracting than pleasing."
+- **South of Midnight** (Unreal 4) shipped stepped characters at 60 fps, tuned per character and with a toggle,
+  after stepping made some playtesters sick.
+- **Spider-Verse** simulated cloth and hair on ones while characters moved on twos, because stepping a
+  simulation directly makes it snap. This is an analogy: films have no live camera to fight.
 
-### 3.3 The Core Motion Risk: Centre-Screen Judder
+### The main risk: judder at the centre of the screen
 
-When a smooth 60+ Hz camera tracks a smooth 100 Hz physics pelvis while the rendered puppet holds its **world position** for 83 ms (at 12 bps), the rendered body drifts up to ~25 cm behind the camera's focus point and snaps forward 12 times a second. That **12 Hz centre-screen judder** is the primary trigger for simulator sickness in third-person games.
+The camera moves smoothly. If the puppet holds its world position for 83 ms (one beat at 12 a second), the body
+falls up to about 25 cm behind the camera's focus and snaps forward 12 times a second. That judder is the most
+likely cause of motion sickness. Phase 1 tests two hold modes:
 
-Phase 1 directly tests two hold modes in a blind playtest ([Section 12.1](#121-motion-playtest-phase-1)):
-- **World Hold (`rootSmooth = false`):** Every part holds its world-space position and rotation between beats. Most authentic for remote players and props, but judders against the local follow camera.
-- **Root-Smooth Hold (`rootSmooth = true`):** The pelvis part tracks the smooth physics pelvis every render frame, while the torso, head, and limbs hold their poses *relative to the pelvis* on beats. Eliminates centre-screen judder against the camera while keeping all limb and torso animation stepped.
-
----
-
-## 4. Key Architectural Decisions & Viable Alternatives
-
-Before diving into implementation, this section reviews the major architectural choices in the plan alongside equally viable alternatives and their trade-offs.
-
-### 4.1 Motion Stepping Architecture
-
-| Option | How It Works | Pros | Cons | Verdict |
-|---|---|---|---|---|
-| **A. Sibling `Puppet` Hierarchy in `LateUpdate`** *(Selected)* | Physics bodies lose their renderers; a sibling `Puppet` hierarchy copies transforms on clock beats in `LateUpdate`. | 100% isolated from physics & networking; supports `rootSmooth`, per-part chatter, squash, and mesh swapping cleanly; automatic shadow/culling bounds. | Adds 16 lightweight Transform nodes per player. | **Use this.** Cleanest separation of simulation and presentation. |
-| **B. Render-Hook Transform Override (`beginCameraRendering`)** | Keep renderers on physics bodies; cache held poses and overwrite/restore transforms around `RenderPipelineManager` camera callbacks. | Zero extra GameObjects in `Player.prefab`. | Fragile with Rigidbody interpolation, child colliders (`Hand_L/R`), shadow passes, and non-uniform squash scaling. | **Skip.** High risk of subtle physics/collider side effects. |
-| **C. GPU Vertex / Matrix Buffer Stepping** | Upload beat-held transform matrices to the shader via a `ComputeBuffer` or material properties. | No CPU Transform updates on beats. | Breaks Unity frustum culling, shadow caster bounds, and attachment hierarchy for cosmetics/faces. | **Skip.** Over-engineered for 16 rigid parts. |
-
-### 4.2 Clay Lighting & Shader Architecture (URP 17.6.0)
-
-Real plasticine has a **matte, slightly translucent mineral/wax base** (soft light terminator) topped by a **glossy dielectric skin-oil film** where fingers pressed it (Rowbotham's two-layer Weidlich–Wilkie model).
-
-| Option | How It Works in URP 17.6 | Pros | Cons | Verdict |
-|---|---|---|---|---|
-| **A. URP `Lit` + Built-in `Clear Coat` + Subsurface Wrap** *(Recommended)* | Enable `Clear Coat` in `SG_Clay`'s `Lit` Graph Settings (`Coat Mask` & `Coat Smoothness` driven by fingerprints) over a matte base (`Smoothness 0.18`), plus a wrapped diffuse term in `Emission`. | Gives Rowbotham's exact **two-layer oily-over-matte BRDF** out of the box; full support for Forward+, Spot Lights, Reflection Probes, Soft Shadows, and normal-mapped `DepthNormals` SSAO. | Slightly higher fragment cost than single-lobe `Lit` (negligible at 4 players on PC). | **Best visual & technical fit.** |
-| **B. Standard Single-Lobe URP `Lit` (`Smoothness + 0.15`)** | Base `Lit` shader with `Smoothness = 0.20 + 0.15 * printMask`. | Simplest possible graph (Phase 3 Step 3 baseline). | Narrows the single GGX specular lobe instead of layering a sharp oil glint over a wide waxy base; hard Lambertian shadow terminator looks plastic. | **Use as Step 3 baseline, then enable Clear Coat in Step 4.** |
-| **C. Shader Graph `Custom Lighting` Sample (`Unlit` Target)** | Uses `Samples~/CustomLighting` (`LightOrenNayar` / `LightURP`) on an `Unlit` master node. | Total manual control over diffuse math. | **Verified URP 17.6 traps:** (1) `Lit Oren Nayar` in the sample has **no `AdditionalLights` loop** and renders **100% black** under `LookDev`'s spot lights; (2) `AdditionalLightsURP` averages multi-light colours incorrectly; (3) `Unlit` targets do not write fragment normals to `DepthNormals`, breaking fingerprint SSAO. | **Avoid the `Unlit` sample.** Keep `URP Lit` as the master target. |
-
-### 4.3 Facial & Hand Replacement Animation Architecture
-
-| Option | How It Works | Pros | Cons | Verdict |
-|---|---|---|---|---|
-| **A. 3D Mesh Swapping (`MeshFilter.sharedMesh`)** *(Selected)* | Swap between 5 sculpted mouth meshes, 3 eyelid meshes, and 3 hand poses on beats. | Authentic to Aardman/Laika replacement trays; works freely with Blender Voxel Remesh (`Ctrl+R`) and `Decimate`; zero runtime deform cost; natural per-piece fingerprint boil. | Can show an intersection seam against the head if sculpted as a bare hole rather than a raised clay lip/muzzle patch. | **Use this.** Sculpt mouths with a rounded outer lip rim so the seam looks thumb-pressed. |
-| **B. 2D/Normal Atlas Flipbook or URP Decal** | Project or UV-map a texture/normal flipbook of mouths and eyes onto the head sphere. | Zero mesh seam; trivial to draw 12+ expressions in 2D. | Flat silhouette in side profile; reads more like *Lego Movie* painted plastic than 3D clay; URP Decals require Rendering Layer Masks to avoid projecting onto hands near the face. | **Viable fallback** if 3D mouth sculpting feels too slow in Phase 7. |
-| **C. BlendShapes (Blender Shape Keys)** | Morph a single head/hand mesh between expressions, stepped on clock beats. | Continuous mesh with no replacement seam. | **Incompatible with Blender's `Voxel Remesh` and `Decimate` modifiers**; requires `SkinnedMeshRenderer` (breaks static `MeshRenderer` batching); linear vertex travel looks like CG morphing. | **Skip** for main face/hands (reserve for optional single-axis flatten). |
-
-### 4.4 Impact Dent Architecture
-
-| Option | How It Works | Pros | Cons | Verdict |
-|---|---|---|---|---|
-| **A. Shader Vertex Displacement (`SG_Dent`)** *(Selected)* | Up to 2 active dents per part (`_DentA/B`), displacing vertices inward at the exact world impact point with a raised rim and recomputed normals. | Dents appear at the **exact collision contact point and angle**; zero extra meshes to sculpt; feeds shadow pass automatically. | Requires sufficient vertex density (~1–2 cm spacing, met by Section 8.6 budgets) and world-normal tangent construction (since meshes have no UVs). | **Use this.** |
-| **B. Pre-Sculpted "Dented" Replacement Meshes** | Swap `P_Head` or `P_Torso` to a pre-sculpted dented mesh on hard impact. | Hand-sculpted creases and folds. | Dents appear in a fixed spot regardless of where the hit landed; doubles the number of body meshes to sculpt and maintain. | **Optional supplement** for one signature gag (e.g. a pancake-flat head). |
+- **World hold** (`rootSmooth` off). Every part holds its world pose between beats. Most authentic, but it
+  judders against the follow camera.
+- **Root-smooth** (`rootSmooth` on). The pelvis follows the physics every frame; every other part holds its
+  pose relative to the pelvis. The limbs still step, but the body doesn't judder against the camera.
 
 ---
 
-# Part II — System & Art Design
+# Part II — Design
 
-## 5. Puppet & Clock Architecture
+## 4. The character today
 
-### 5.1 Current `Player.prefab` Structure (Verified Against Codebase)
+[`Player.prefab`](../Assets/DrunkCharacter/Prefabs/Player.prefab) draws the character with 16 primitive meshes on
+13 Rigidbodies. Every body is on layer 8, `PlayerBody`, and uses Rigidbody interpolation.
 
-Currently, [`Player.prefab`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Prefabs/Player.prefab) renders the character using **16 Unity primitive meshes** attached to **13 physics `Rigidbody` objects** (all on Layer 8 `PlayerBody`, total mass `62.0 kg`, standing height `1.85 m`, with `RigidbodyInterpolation.Interpolate` enabled on host):
-
-| Physics Body (`Rigidbody`) | Mass | Prefab Local Rotation | Scale (`lossyScale`) | Extra Rendered Child Parts (No `Rigidbody`) |
+| Body | Mass, kg | Scale | Rotation | Drawn child (no Rigidbody) |
 |---|---|---|---|---|
-| `Pelvis` | 14.0 kg | `identity` | `(0.34, 0.20, 0.22)` | — |
-| `Torso` | 13.0 kg | `identity` | `(0.40, 0.36, 0.24)` | — |
-| `Head` | 4.0 kg | `identity` | `(0.36, 0.36, 0.36)` | `Nose` (no collider; local pos `(0, -0.05, 0.55)`, world scale `(0.0648, 0.0648, 0.108)`) |
-| `UpperArm_L` / `UpperArm_R` | 2.0 kg each | **`+90° Y` (L) / `-90° Y` (R)** | `(0.10, 0.14, 0.10)` | — |
-| `Forearm_L` / `Forearm_R` | 1.5 kg each | `identity` | `(0.09, 0.15, 0.09)` | `Hand_L` / `Hand_R` (have `SphereCollider`s acting as compound colliders on the forearm `Rigidbody`; world scale `(0.11, 0.11, 0.11)`) |
-| `Thigh_L` / `Thigh_R` | 7.0 kg each | `identity` | `(0.18, 0.21, 0.18)` | — |
-| `Shin_L` / `Shin_R` | 3.5 kg each | `identity` | `(0.14, 0.20, 0.14)` | — |
-| `Foot_L` / `Foot_R` | 1.5 kg each | `identity` | `(0.16, 0.10, 0.30)` | — |
+| Pelvis | 14 | (0.34, 0.20, 0.22) | none | |
+| Torso | 13 | (0.40, 0.36, 0.24) | none | |
+| Head | 4 | (0.36, 0.36, 0.36) | none | `Nose`, no collider. 0.198 m in front of the head centre and 0.018 m below it; world scale (0.0648, 0.0648, 0.108). |
+| UpperArm_L, _R | 2 each | (0.10, 0.14, 0.10) | +90° Y (L), −90° Y (R) | |
+| Forearm_L, _R | 1.5 each | (0.09, 0.15, 0.09) | none | `Hand_L`, `Hand_R`: a sphere collider on the forearm's Rigidbody, 0.18 m below the forearm centre; world scale 0.11. |
+| Thigh_L, _R | 7 each | (0.18, 0.21, 0.18) | none | |
+| Shin_L, _R | 3.5 each | (0.14, 0.20, 0.14) | none | |
+| Foot_L, _R | 1.5 each | (0.16, 0.10, 0.30) | none | |
 
-- **Flat Hierarchy:** The 13 physics bodies, `CameraTarget`, and the `Ghost` rig are direct children of `Player`. The `Player` root never moves after spawn.
-- **Zero Renderer Dependencies:** No existing script reads or modifies `MeshRenderer` or `MeshFilter` components, so moving all renderers to a sibling `Puppet` hierarchy is 100% safe.
-- **Client Simulation Disabling:** [`NetworkPlayer.OnNetworkSpawn`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/NetworkPlayer.cs#L57-L99) disables all 14 `simulation` behaviours on clients and sets all 13 `Rigidbody` components to `isKinematic = true` and `interpolation = None`. Therefore, `FootPlacement`, `HandGrab`, and `PlayerController` physics events never fire directly on clients; instead, [`NetworkPose`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/NetworkPose.cs) drives client transforms from unreliable 60 Hz [`PoseFrame`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/PoseFrame.cs) packets.
+What the design relies on:
 
-### 5.2 The New `Puppet` & Event Architecture
+- **Flat hierarchy.** The bodies, `CameraTarget` and `Ghost` are direct children of `Player`. The root doesn't
+  move after spawn.
+- **Nothing reads the meshes.** No script uses `MeshRenderer` or `MeshFilter`, so the meshes can move to their
+  own hierarchy.
+- **Nothing under `Puppet` may have a Rigidbody or Collider.** `BalanceSensor.Awake` collects every Rigidbody
+  under `Player` into `Bodies` (13), and `NetworkPose` drops any frame whose body count differs.
+  `PlayerController` and `HandGrab` collect every Collider under `Player`. Create puppet objects as empty
+  GameObjects and add the MeshFilter and MeshRenderer by hand; GameObject > 3D Object adds a collider.
+- **Clients don't simulate.** `NetworkPlayer.OnNetworkSpawn` disables the simulation scripts on clients and
+  makes every body kinematic, so `FootPlacement`, `HandGrab` and `PlayerController` events never fire there.
+  `NetworkPose` places client bodies from `PoseFrame`s the host sends unreliably at 60 Hz, 142 bytes each.
+- **Domain reload is off** when entering play mode, so static fields keep their values between runs.
 
-```mermaid
-flowchart LR
-    Sensors["Host Simulation:<br/>FootPlacement, HandGrab,<br/>PlayerController, ImpactSensor"]
-    KPE["KeyPoseEvents<br/>(on Player)"]
-    Pose["NetworkPose / PoseFrame<br/>(byte counters, HandFlags, Expression)"]
-    Clock["StopMotionClock<br/>(one per scene)"]
-    Ragdoll["13 Physics Bodies<br/>(100 Hz, colliders only)"]
-    Puppet["Puppet Hierarchy<br/>(13 pose roots + child meshes)"]
-    Face["Face, Hands, Feet<br/>(replacement meshes)"]
-    Voice["VoiceLevel<br/>(DebugVoice now, VoIP later)"]
-    Shader["SG_Clay Material"]
+## 5. Puppet and clock
 
-    Sensors -- "host C# events" --> KPE
-    KPE -- "increment byte counters" --> Pose
-    Pose -- "counter diff on client" --> KPE
-    KPE -- "RequestBeat(holdExtra: true)" --> Clock
-    Clock -- "Beat advanced" --> Puppet
-    Ragdoll -- "Transform read in LateUpdate" --> Puppet
-    KPE -- "Land, Grip, Expression" --> Face
-    Voice --> Face
-    Clock -- "_StopMotionBeat (global)" --> Shader
+### 5.1 How it fits together
+
+1. Host sensors (`FootPlacement`, `HandGrab`, `PlayerController`, `ImpactSensor`) raise C# events.
+2. `KeyPoseEvents`, on `Player`, turns them into key poses and counts each one in the `PoseFrame`.
+3. Clients see the counters change and raise the same key poses.
+4. On every key pose, `KeyPoseEvents` calls `StopMotionClock.RequestBeat(true)`.
+5. On each beat, every `PuppetPart` copies its body's pose in `LateUpdate`.
+6. The face, hands and feet swap meshes from key poses and from `VoiceLevel`.
+7. The clock sets the global shader value `_StopMotionBeat`, which drives boil.
+
+**Why a separate hierarchy.** It keeps the look fully apart from physics and networking, it supports
+root-smooth, chatter, squash and mesh swaps, and culling and shadows work unchanged. Rejected: overriding the
+body transforms around rendering (fragile with interpolation, colliders and shadow passes), and holding poses
+on the GPU (breaks culling and attached objects).
+
+### 5.2 Hierarchy
+
+```
+Player
+├─ Pelvis, Torso, Head, …        13 physics bodies, colliders only
+└─ Puppet                        Puppet
+   ├─ P_Pelvis                   PuppetPart, scale 1
+   │  └─ Mesh_Pelvis             MeshFilter + MeshRenderer, scale = baseScale
+   ├─ P_Head
+   │  ├─ Mesh_Head
+   │  ├─ P_Nose
+   │  │  └─ Mesh_Nose
+   │  ├─ Eyes, Mouth             phase 4A
+   │  └─ Hat                     phase 4B
+   ├─ P_Forearm_L
+   │  ├─ Mesh_Forearm_L
+   │  └─ P_Hand_L
+   │     └─ Mesh_Hand_L
+   └─ … one P_<Body> per body
 ```
 
-> [!WARNING]
-> **Critical Invariant — No `Rigidbody` or `Collider` Under `Puppet`:**
-> - [`BalanceSensor.Awake` (line 54)](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/BalanceSensor.cs#L54) calls `GetComponentsInChildren<Rigidbody>()` on `Player` to build `Bodies`, and [`NetworkPose.ReceivePoseRpc` (line 86)](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/NetworkPose.cs#L86) drops any network frame whose body count differs from `Bodies.Length` (`13`).
-> - [`PlayerController.Awake` (line 151)](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/PlayerController.cs#L151) and [`HandGrab.Awake` (line 70)](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/HandGrab.cs#L70) call `GetComponentsInChildren<Collider>()` on `Player`.
-> - Therefore, **no object inside `Puppet` (including face pieces and attached cosmetics) may ever have a `Rigidbody` or `Collider`**. Always create puppet objects as empty `GameObject`s and add `MeshFilter` + `MeshRenderer` manually (never via *GameObject > 3D Object*, which adds a collider).
+- **One `P_<Body>` per physics body (13).** Each has a `PuppetPart` and stays at scale (1, 1, 1); it only
+  sets position and rotation.
+- **Its `Mesh_<Body>` child carries the scale.** `baseScale` is the body's `lossyScale` while the mesh is a
+  Unity primitive, and (1, 1, 1) once it is a sculpt. Squash scales the mesh child, never `P_<Body>`. At rest
+  the mesh child sits at local (0, 0, 0) with no rotation; the placeholder shoes in phase 4A are the one
+  exception.
+- **`P_Nose` and `P_Hand_L/R` are plain children,** because the nose and hands are rigid to their bodies. They
+  move with their parent's chatter and breathing, so nothing separates at the wrist. Their local position is
+  the offset in metres: nose (0, −0.018, 0.198), hands (0, −0.18, 0). Don't copy the source's
+  `localPosition`: it is measured in the body's scaled space and would put the nose 55 cm in front of the face.
+- **Face pieces and cosmetics go under `P_Head` or `P_Torso`,** not under a mesh child, so they keep their real
+  size and don't shear when the part squashes.
 
-### 5.3 Hierarchy & Transform Rules for `PuppetPart`
+### 5.3 `StopMotionClock`
 
-To prevent non-uniform scale skew on rotated children (eyes, hats) and prevent `Nose` and `Hand_L/R` from detaching during chatter or idle breathing, `Puppet` uses a clean **Pose-Root + Mesh-Child** structure:
+One per scene.
 
-1. **Pose Roots vs. Mesh Children:**
-   - Each `PuppetPart` (`P_Pelvis`, `P_Torso`, `P_Head`, `P_UpperArm_L/R`, `P_Forearm_L/R`, `P_Hand_L/R`, `P_Thigh_L/R`, `P_Shin_L/R`, `P_Foot_L/R`) sits at **scale `(1, 1, 1)`** and holds the `PuppetPart` script (which only updates position and rotation on beats).
-   - Inside each `P_<Part>`, a child GameObject named **`Mesh`** holds the `MeshFilter`, `MeshRenderer`, and the part's `baseScale` (set to `source.lossyScale` while using Unity primitives in Phases 1–4B, and `(1, 1, 1)` once replaced by metre-scale sculpted FBX meshes in Phase 6).
-   - **Why this matters:**
-     - Face pieces (`Eyes`, `Mouth`) and head cosmetics (`Hat`, `Glasses`) are parented to **`P_Head`** (at scale `(1, 1, 1)`), **not** `P_Head/Mesh`. They stay at true metre scale in both Phase 4A and Phase 6, and never shear or squash when `P_Head/Mesh` flattens on impact!
-2. **Rigid Attachment of `Nose` and `Hand_L/R`:**
-   - **`P_Nose`** is a child of **`P_Head`** (not a separate `PuppetPart`), so it automatically moves with `P_Head`'s chatter and idle breathing. (In Phase 6, you can either export `Nose` on `P_Nose` or sculpt the nose directly into `SM_Puppet_Head`.)
-   - **`P_Hand_L/R`** have `PuppetPart.parentPart` set to `P_Forearm_L/R` and `followParentChatter = true`. On each beat, `P_Hand_L/R` positions itself at `P_Forearm_L/R`'s post-chatter transform plus the hand's local offset from the forearm (`Forearm.InverseTransformPoint(Hand.position)`), with **zero independent positional chatter** so the wrist never separates into a gap.
-3. **Execution Timing (`LateUpdate`):**
-   - `StopMotionClock` advances in `Update`.
-   - `PuppetPart` copies transforms in **`LateUpdate`** when `StopMotionClock.Beat != lastBeat`. Running in `LateUpdate` guarantees [`NetworkPose.Update`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/NetworkPose.cs#L101) has already applied the current frame's network pose on clients.
-   - Always read `source.position` and `source.rotation` (the interpolated `Transform`), never `Rigidbody.position`.
-4. **Domain Reload Off Reset:**
-   - This project has **Enter Play Mode Options** enabled with Domain Reload **off** (`m_EnterPlayModeOptions: 3` in `EditorSettings.asset`). Reset all static fields (`StopMotionClock.Instance`, `Beat`, static events) inside a `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]` method.
-5. **Spawn & Teleport Snapping:**
-   - On spawn (`OnEnable`), `PuppetPart` copies every frame until the first beat after `OnEnable` (because `NetworkPlayer.OnNetworkSpawn` moves the character after `OnEnable`, and clients wait for their first `PoseFrame`).
-   - Whenever `KeyPoseEvents.Snapped` fires (on `CharacterReset`, `StandAt`, or client `ResetCount` change), all parts copy immediately on that frame without waiting for a beat.
-6. **Time-Scaled Benches & Frame Spikes:**
-   - [`SwayBench`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/Sandbox/Debug/SwayBench.cs#L31) and [`TerrainBench`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/Sandbox/Debug/TerrainBench.cs#L57) speed up runs using `Time.timeScale`. The clock advances at most **one beat per rendered frame** (`nextBeatTime = Time.time + interval`) and never catches up on missed beats after a hitch.
+| Feature | Behaviour |
+|---|---|
+| Rate | `beatsPerSecond` (12). The interval is 1 / `beatsPerSecond`. |
+| Requested beat | `RequestBeat(holdExtra)` only sets a pending flag, so it is safe to call from `FixedUpdate`. On the next `Update`, if at least 1/24 s has passed since the last beat, beat now and schedule the next beat (1 + `extraHoldBeats`) intervals later when any request asked for the extra hold, or 1 interval later otherwise. |
+| Timing variation | Multiply each interval by 1 + `Random.Range(-timingVariation, timingVariation)`. Default 0. |
+| Hitches | At most one beat per rendered frame. Schedule from now (`next = Time.time + interval`) and never catch up. This also keeps benches that raise `Time.timeScale` working. |
+| Holds off | Beat every frame. |
+| Shader beat | On each beat, `Shader.SetGlobalFloat("_StopMotionBeat", Beat % 1200)`. 1200 divides by 2, 3, 4, 5, 6, 8, 10 and 12, so variant cycles never jump at the wrap. |
+| Statics | `Instance`, `int Beat`, `event Action Beaten`, `static void RequestBeat(bool holdExtra)`. Reset them in a `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]` method, because domain reload is off. |
 
-### 5.4 `KeyPoseEvents` and Network Synchronization
+### 5.4 `PuppetPart` and `Puppet`
 
-Create `Assets/DrunkCharacter/Scripts/KeyPoseEvents.cs` (one on `Player`). Both host and client visual scripts subscribe solely to `KeyPoseEvents`:
+`PuppetPart` fields: `source` (its body), `pelvis` (the Pelvis body, for root-smooth), `mesh` (its mesh child)
+and `baseScale`.
+
+| Feature | Behaviour |
+|---|---|
+| World hold | On a beat, `transform.SetPositionAndRotation(source.position, source.rotation)`. Read the Transform, which is interpolated, never `Rigidbody.position`. |
+| Root-smooth | `P_Pelvis` copies the Pelvis every frame. Every other part, on a beat, stores its pose relative to the Pelvis in metres: `relPos = Quaternion.Inverse(pelvis.rotation) * (source.position - pelvis.position)` and `relRot = Quaternion.Inverse(pelvis.rotation) * source.rotation`. Every frame it applies them to `P_Pelvis`: position `P_Pelvis.position + P_Pelvis.rotation * relPos`, rotation `P_Pelvis.rotation * relRot`. Don't use `pelvis.InverseTransformPoint`: the Pelvis is scaled, so it isn't in metres. |
+| Moved | A part moved if its position changed more than 1 mm or its rotation more than 0.5° since its last beat. |
+| Chatter | On a beat, if the part moved, add a random rotation of up to `chatterDegrees` about a random axis and a random offset of up to `chatterMetres`. Each beat replaces the last one's chatter; it never adds up. |
+| Moving hold | The character is idle when the pelvis has moved slower than 0.05 m/s for 0.5 s. On each idle beat, pitch `P_Torso` and `P_Head` by `idleAmplitude × sin(2π × 0.25 × Time.time)` degrees about the pelvis's right axis. Clear it on the first beat that isn't idle. |
+| Squash | Scale the mesh child to `baseScale × (1.08, 0.85, 1.08)` for `squashBeats` beats, then restore it on a beat. On feet, also lower the mesh child by 15% of the distance from its origin to its sole (7.5 mm on the bare foot box), so the sole stays on the floor. |
+| Spawn | After `OnEnable`, copy every frame until the first beat. The network moves the character after `OnEnable`, and clients wait for their first frame. |
+| Snap | When `KeyPoseEvents.Snapped` fires, copy at once instead of waiting for a beat. |
+| Material | In `Awake`, take `renderer.material` for its mesh child (and for the nose or hand mesh under it) and set `_PartSeed` and `_BaseScale` (= `baseScale`). In `OnDestroy`, `Destroy` those materials. Don't use a MaterialPropertyBlock; it turns off the SRP Batcher. |
+
+`Puppet` holds `List<PuppetPart> parts`. In `Awake` it fills the list by taking each body in
+`BalanceSensor.Bodies` and finding the child named `P_<body name>`, so `parts[i]` belongs to `Bodies[i]`.
+
+### 5.5 Key poses and networking
+
+Create `KeyPoseEvents.cs` on `Player`. Visual scripts on host and clients listen only to it.
 
 ```csharp
 public enum KeyPose : byte
 {
-    LandL, LandR,
-    GripL, GripR,
-    StumbleStarted,
-    Impact,
-    Reversal,
-    RecoverStart,
-    RecoverStand
+    LandL, LandR, GripL, GripR, StumbleStarted, Impact, Reversal, RecoverStart, RecoverStand
 }
 
 public enum Expression : byte { Neutral, Grimace, Shock }
 
-// Members on KeyPoseEvents:
-public event Action<KeyPose> Raised;   // fires on both host and clients
-public event Action Snapped;           // fires on spawn reset, StandAt, or client ResetCount change
-public byte HandFlags { get; private set; }       // bit0: L reach, bit1: L hold, bit2: R reach, bit3: R hold
-public Expression CurrentExpression { get; private set; }
+// On KeyPoseEvents:
+public event Action<KeyPose> Raised;   // on host and clients
+public event Action Snapped;           // spawn reset, StandAt, or a client seeing the reset count change
+public byte HandFlags { get; }         // bit 0 left reach, 1 left hold, 2 right reach, 3 right hold
+public Expression CurrentExpression { get; }
 ```
 
-#### Host Signal Sources (Verified Against Existing Scripts)
+**Where the host's key poses come from**
 
-| `KeyPose` | Existing Script & Line | What to Add |
+| Key pose | Source | What to add |
 |---|---|---|
-| `LandL` / `LandR` | [`FootPlacement.AdvanceSwing` (line 677)](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/FootPlacement.cs#L677), right where `LastLandTime = Time.time;` is set | Add `public event Action Landed;` to `FootPlacement` and invoke it at line 677. |
-| `GripL` / `GripR` | [`HandGrab.TryGrip` (line 137)](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/HandGrab.cs#L137), right after `gripping = true;` | Add `public event Action Gripped;` to `HandGrab` and invoke it after `holdsBody = held != null;` (line 138). |
-| `StumbleStarted` | [`PlayerController.UpdateFallMeter` (line 286)](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/PlayerController.cs#L286) | Add `public event Action StumbleStarted;` to `PlayerController`. Raise when `charge > 0f` this tick and `prevCharge == 0f` (reset `prevCharge = 0f` in `ClearFallMeter`). |
-| `Impact` | No existing ground-impact signal (`Fell` fires while still upright when the fall meter fills) | Add `ImpactSensor` to the physics bodies. While `playerController.IsFallen`, on the first `OnCollisionEnter` against a non-self collider with approach speed `Δv > 1.0 m/s`, raise `Impact` once per fall. |
-| `Reversal` | Computed in `KeyPoseEvents.FixedUpdate` (host only) | Track pelvis horizontal velocity `v = pelvis.linearVelocity.Flat()`. While `v.magnitude > 0.3 m/s`, store `lastDir = v.normalized`. Raise `Reversal` when `Vector3.Dot(v, lastDir) < 0f` and `v.magnitude > 0.3 m/s` (cooldown `0.3 s`). |
-| `RecoverStart` / `RecoverStand` | Added in Phase 4B (`RecoveryController` / `PlayerController`) | Raised when recovery begins and when the character finishes standing up ([Section 7.6](#76-getting-up-recovery-styles)). |
+| `LandL`, `LandR` | `FootPlacement.AdvanceSwing`, where it sets `LastLandTime` | `public event Action Landed;`, raised there. |
+| `GripL`, `GripR` | `HandGrab.TryGrip`, after it sets `holdsBody` | `public event Action Gripped;`, raised there. It also fires when the hand grips the world. |
+| `StumbleStarted` | `PlayerController.UpdateFallMeter` | `public event Action StumbleStarted;`, raised when `charge > 0` this tick and was 0 last tick. Keep last tick's charge in a field and zero it in `ClearFallMeter`. |
+| `Impact` | New `ImpactSensor` on the bodies | While `IsFallen`, the first `OnCollisionEnter` with something else at an approach speed above 1 m/s (section 8.1) raises it, once per fall. `Fell` can't be used: it fires while the character is still upright. |
+| `Reversal` | `KeyPoseEvents.FixedUpdate`, host only | Take the pelvis's horizontal velocity `v`. When `v.magnitude > 0.3` m/s: if `lastDir` is set, `Vector3.Dot(v, lastDir) < 0` and 0.3 s have passed since the last reversal, raise it. Then set `lastDir = v.normalized`. |
+| `RecoverStart`, `RecoverStand` | Phase 4B | Section 8.2. |
 
-#### Host State Polling (`HandFlags` & `CurrentExpression`)
+**Host state, every tick**
 
-- **Reaching (`bit 0` / `bit 2`):** `playerController.CurrentInput.GrabLeft` (or `GrabRight`) is `true` and `!handGrab.IsHolding`.
-- **Holding (`bit 1` / `bit 3`):** `handGrab.IsHolding` is `true`.
-- **`CurrentExpression`:**
-  - `Shock` while `playerController.IsFallen` and `pelvis.linearVelocity.magnitude > 1.0 m/s`;
-  - `Grimace` while `playerController.FallMeterFraction > 0.3f`;
-  - `Neutral` otherwise.
+- Reach bit: `CurrentInput.GrabLeft` (or `GrabRight`) and that hand's `HandGrab.IsHolding` is false.
+- Hold bit: that hand's `IsHolding`.
+- Expression: `Shock` while `IsFallen` and the pelvis moves faster than 1 m/s; `Grimace` while
+  `FallMeterFraction > 0.3`; otherwise `Neutral`.
 
-#### Replicating to Clients via `PoseFrame`
+**To clients through `PoseFrame`**
 
-- **Payload (`+11 bytes` on the existing 142-byte [`PoseFrame`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/PoseFrame.cs)):**
-  - Add 9 `byte` counters (one per `KeyPose`; 7 used in Phase 1, 2 used in Phase 4B), `byte HandFlags`, and `byte Expression` to `PoseFrame.NetworkSerialize`.
-  - Total `PoseFrame` size becomes **153 bytes** (~73.4 kbps at 60 Hz), well under `UnityTransport`'s 6144-byte payload limit.
-- **Host Write:** `KeyPoseEvents` increments the corresponding `byte` counter whenever a `KeyPose` fires. [`NetworkPose.SendPose`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/NetworkPose.cs#L60) copies the counters, `HandFlags`, and `Expression` into the outgoing `PoseFrame`.
-- **Client Read (Avoiding Late-Join Event Bursts):**
-  - In [`NetworkPose.Update`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/NetworkPose.cs#L101), track `bool hasBaselineCounters`, `int lastToTick`, and the previous `to` frame's counters.
-  - On the very first frame received (or whenever `from.ResetCount != to.ResetCount`), copy `to`'s counters into the baseline **without** raising events (so a late-joining client doesn't fire a burst of old events on spawn).
-  - Thereafter, whenever `to.Tick != lastToTick`, compare each counter on `to` against the stored baseline; if changed, call `KeyPoseEvents.RaiseFromNetwork(pose)` and update the baseline. Using `byte` counters ensures events still fire even if an unreliable `PoseFrame` packet was dropped!
-- **Client & Host Snapping:**
-  - On a client, `NetworkPose.Update` calls `KeyPoseEvents.RaiseSnapped()` at line 118 when `from.ResetCount != to.ResetCount`.
-  - On the host, `KeyPoseEvents` raises `Snapped` on `playerController.CharacterReset`.
+- Add nine byte counters (one per key pose), `HandFlags` and `Expression`. The frame grows from 142 to 153
+  bytes.
+- **Host.** `KeyPoseEvents` adds 1 to a key pose's counter when it fires. `NetworkPose.SendPose` copies the
+  counters, flags and expression into the frame.
+- **Client,** in `NetworkPose.Update`, using the frame it is about to show:
+  - On the first frame, or when the reset count changes, copy its counters as the baseline and raise
+    nothing. A client that joins late then doesn't replay old events.
+  - Otherwise, when the tick changes, compare each counter with the baseline. For each that changed, call
+    `KeyPoseEvents.RaiseFromNetwork(pose)` and update the baseline. Because they are counters, a dropped
+    packet doesn't lose the event.
+  - Read `HandFlags` and `Expression` from the same frame.
+- **Snap.** A client raises `Snapped` where `NetworkPose` already snaps across a reset
+  (`from.ResetCount != to.ResetCount`). The host raises it on `CharacterReset`.
 
-### 5.5 `StopMotionClock` Specification
+## 6. Body construction
 
-| Feature | Exact Behaviour |
-|---|---|
-| **Base Rate** | `beatsPerSecond` (default `12`). Normal interval `dt = 1f / beatsPerSecond`. |
-| **Requested Beats (`RequestBeat`)** | Sets a pending flag (`pendingBeat = true`, `pendingExtraHold |= holdExtra`), safe to call from `FixedUpdate`. On the next `Update`, if at least `minBeatInterval` (`1/24 s`) has elapsed since the last beat, beat immediately and schedule the next beat after `(1 + (pendingExtraHold ? extraHoldBeats : 0)) * interval`. |
-| **Timing Variation** | Multiplies each scheduled interval by `1f + Random.Range(-timingVariation, timingVariation)` (default `0`, range `0–0.05`). |
-| **Holds Off** | Advances `Beat` every `Update` frame. |
-| **Global Shader Beat** | On every beat, calls `Shader.SetGlobalFloat("_StopMotionBeat", Beat % 1200)`. (`1200` is divisible by `2, 3, 4, 5, 6, 8, 10, 12`, so modulo texture swaps never glitch at the wrap.) |
+### 6.1 Options
 
-### 5.6 `PuppetPart` Behaviour Specification
+- **A. Segmented puppet (chosen).** One clay mesh per part (16), with rounded ball ends that overlap at the
+  joints. Real puppets are built this way, with sleeves and collars over the joints. It maps one-to-one onto
+  the ragdoll and needs no rigging, weights or UVs. Weak spot: a joint ball can show at extreme angles.
+- **B. One skinned body (optional phase 10).** One mesh on a 13-bone armature. Seamless, but it needs
+  retopology, UVs, baking and weight painting, and it stretches when a grab or a fall pulls the joints apart.
+- **C. Volumetric blobs (MudBun, Clayxels).** Rejected: heavy on the GPU, hard to control when a hand grabs
+  something, and the look belongs to the plugin.
 
-| Feature | Exact Behaviour |
-|---|---|
-| **World Hold (`rootSmooth = false`)** | On a beat, set `transform.SetPositionAndRotation(source.position, source.rotation)`. |
-| **Root-Smooth Hold (`rootSmooth = true`)** | `P_Pelvis` copies `Pelvis` every render frame in `LateUpdate`. Every other part stores its pose relative to `Pelvis` (`relPos = Pelvis.InverseTransformPoint(source.position)`, `relRot = Quaternion.Inverse(Pelvis.rotation) * source.rotation`) on a beat, and every render frame applies that held relative pose on top of `P_Pelvis`'s current smooth transform. |
-| **Moved Threshold** | A part counts as having **moved** on a beat if `source.position` moved `> 1 mm` or `source.rotation` rotated `> 0.5°` since that part's previous beat. |
-| **Chatter** | On a beat, if the part moved, apply a fresh random rotation of up to `chatterDegrees` (`0.75°`) around a random unit axis and a random offset of up to `chatterMetres` (`4 mm`, except `0 mm` on `P_Hand_L/R` so wrists stay attached). Replaces the previous beat's chatter; **never accumulates**. |
-| **Moving Hold (Idle Breathing)** | Character is idle when pelvis speed `< 0.05 m/s` for `0.5 s`. On each beat while idle, add a pitch rotation of `idleAmplitude * Mathf.Sin(2f * Mathf.PI * 0.25f * Time.time)` degrees around `P_Pelvis.right` to `P_Torso` and `P_Head`. Clear on the first non-idle beat. |
-| **Contact Squash** | Applied to the **`Mesh` child transform** (never the `P_<Part>` pose root). Multiplies `baseScale` by `(1.08f, 0.85f, 1.08f)` with `0.85f` aligned to the contact normal for `squashBeats` (`2`) beats, then restores `baseScale` on a beat. On `P_Foot_L/R`, also shifts `Mesh.localPosition.y` down by `(1f - 0.85f) * 0.05f = -0.0075 m` (`-7.5 mm`) during the squash so the shoe sole stays planted on the floor instead of lifting up! |
+### 6.2 Three ways to make the parts (phase 6)
 
----
-
-## 6. Body Construction & Asset Creation Pathways
-
-### 6.1 Body Construction: Three Architectural Options
-
-| Criterion | A. Segmented Puppet *(Selected)* | B. Continuous Skinned Body *(Optional Phase 10)* | C. Volumetric Blobs / SDF (MudBun / Clayxels) |
-|---|---|---|---|
-| **How it works** | One sculpted clay mesh per rigid part (16 total), with rounded ball ends overlapping at joints. | One unified mesh deformed by a 13-bone armature driven by the physics bodies. | Real-time GPU signed-distance-field metaballs that melt together on contact. |
-| **Visual look** | Authentic stop-motion puppet; joints hide under clothing cuffs/collars or read as ball-and-socket seams. | Bends like a single continuous piece of rubber/clay (*Gang Beasts* / *Human Fall Flat*). | Goopy, liquid-clay fusion whenever limbs touch. |
-| **Fit with active ragdoll** | 1-to-1 with the 16 parts; **zero rigging, zero weight painting, zero UVs**. | Requires retopology, UV unwrapping, normal baking, and careful weight painting. | Hard to control when a hand grabs another player or a prop. |
-| **Failure mode** | Joint ball shows if a limb twists to an extreme ragdoll angle. | Mesh stretches like taffy if a joint pulls apart under `HandGrab` or fall forces. | Compute-shader heavy; `Clayxels` is broken in Unity 6 / URP 17; look belongs to the plugin. |
-
-**Decision:** Start with **Option A (Segmented Puppet)**. Real stop-motion puppets use segmented limbs hidden by sleeves, collars, and trousers, or visible ball sockets, and replacement mouths/eyelids/hands are separate pieces anyway. **Option B** is fully specified as an optional Phase 10 if you later want seamless joints.
-
-### 6.2 Three Viable Pathways to Create the 3D Clay Parts (Phase 6)
-
-Because you are already sculpting a physical 20 cm clay maquette in Phase 2, you do **not** have to rely solely on slow freehand mouse/tablet sculpting from scratch in Phase 6. Here are three viable asset-creation pathways you can mix and match:
-
-| Pathway | How It Works | Pros | Cons | Time for Phase 6 |
+| Route | How | Good | Watch for | Hours |
 |---|---|---|---|---|
-| **Pathway 1: Freehand Blender Voxel Sculpting** *(Baseline Plan)* | Duplicate each guide primitive in Blender, `Voxel Remesh` (`Ctrl+R`), sculpt with `Clay Strips` and `Clay Thumb` matching your maquette photos, `Decimate`, and export. | Teaches core freehand 3D sculpting skills; works well for simple shapes (limbs, nose, eyes). | Slowest for a beginner; matching 2D photos by eye across 16 parts takes 40–70 hours. | **40–70 h** |
-| **Pathway 2: Phone Photogrammetry of Your Phase 2 Maquette** *(Fast-Track Hybrid)* | Take 50–80 overlapping phone photos around your physical Phase 2 maquette (dusted with cornstarch/talc if glossy), reconstruct a 3D mesh in **Meshroom** (free, native Linux) or **KIRI Engine / Polycam**, align to `Guide.fbx` in Blender, `Voxel Remesh`, and `Decimate`. | Captures your **literal hand-sculpted physical clay** (the exact *Harold Halibut* workflow); skips 40+ hours of re-sculpting proportions by eye; no drawing tablet needed. | Tiny parts (9 mm maquette eyes/mouths) are still easier to make in Blender than to scan; requires cleaning scan bases in Blender. | **15–25 h** |
-| **Pathway 3: Non-Destructive Blender Modifier Stack** *(Programmer-Friendly)* | Block out parts with simple primitives or **Metaballs**, then stack three modifiers: **1. `Remesh` (Voxel `0.004 m`)** $\rightarrow$ **2. `Displace` (3D `Clouds`/`Voronoi` texture for automatic clay lumps)** $\rightarrow$ **3. `Decimate`**. Optionally apply and add 3–4 `Clay Thumb` strokes. | **100% non-destructive and mouse-friendly** (no tablet required); fixing a gap in Phase 8 is just moving a sphere in Edit Mode; very fast iteration. | Purely procedural lumps need a few manual `Clay Thumb` stamps on hero parts (Head, Hands) so they don't look uniform. | **15–30 h** |
+| 1. Freehand sculpt (baseline) | Duplicate each guide, voxel remesh, sculpt with Clay Strips and Clay Thumb against the maquette photos, decimate. | Teaches sculpting. | Slow for a beginner. | 40–70 |
+| 2. Scan the maquette | Take 50–80 overlapping phone photos of each maquette piece (dust glossy clay with cornstarch). Reconstruct it in KIRI Engine or Polycam, then align it to its guide in Blender, remesh and decimate. | Uses your real clay. | Tiny pieces (eyes, mouths) are easier to sculpt. Scans need cleaning. Meshroom needs an NVIDIA GPU, so it won't run on this machine. | 15–25 |
+| 3. Modifier stack | Block out with primitives or metaballs, then stack Remesh (voxel 0.004 m) → Displace (Clouds or Voronoi texture) → Decimate. Add a few Clay Thumb marks after applying. | Works with a mouse, stays editable, gaps are easy to fix. | Even lumps look procedural; mark the Head and hands by hand. | 15–30 |
 
-> [!TIP]
-> **Recommended Hybrid Strategy:** Learn the basics in Phase 5, then try **Pathway 3 (Non-Destructive Modifier Stack)** or **Pathway 2 (Maquette Scan)** on the Torso and Forearm first. Use freehand `Clay Thumb` sculpting only for the final 10% of hero surface marks!
+**Recommended:** after phase 5, try route 3 or route 2 on the Torso and one forearm. Keep freehand sculpting
+for the final marks.
 
----
+## 7. Readability
 
-## 7. Readability & Physical Comedy
+Sizes are in game metres on the 0.36 m head. Pixel sizes are at 15 m and 1080p, where 1 px is about 16 mm.
 
-All dimensions below are in **game metres** on the existing `0.36 m` head sphere. Pixel heights are at **1080p** from `15 m` away (`1 px ≈ 16 mm`).
+### 7.1 Eyes
 
-### 7.1 Face & Voice-Driven Mouth
-
-#### Eyes, Pupils, and Eyelids (Parented to `P_Head`)
-
-| Piece | Game Size & Value Contrast | Screen Size at 15 m | Behaviour |
+| Piece | Size and value | At 15 m | Behaviour |
 |---|---|---|---|
-| **Eye Whites** | Two `8 cm` spheres, centres `10 cm` apart on upper front of head; value `≥ 90%` (off-white clay) | **5 px** across | Static children of `P_Head`. |
-| **Pupils** | Two `3.5 cm` black discs/flattened spheres on front of eyes; value `≤ 10%` | **2 px** across | **Pupil Lead:** On each beat, `EyeDriver` rotates each pupil's yaw by `Mathf.Clamp(headYawRateDegPerSec * 0.2f, -25f, 25f)`. Computes `headYawRate` locally from `Head` source between beats (zero network cost). |
-| **Eyelids** | 3 replacement meshes per eye (`Open`, `Half`, `Closed`), pivot at eye centre | **5 px** across | **Blinks:** 5-beat sequence (`Half → Closed → Closed → Half → Open`) every `2–6 s` at random.<br>**Drunk Rest Pose:** Rests at `Half` whenever `NetworkPlayer.DrunkAmount >= 0.6f` (already replicated), otherwise `Open`. |
+| Whites | Two 8 cm spheres, centres 10 cm apart, on the upper front of the head. Value at least 90%. | 5 px | Fixed. |
+| Pupils | 3.5 cm black discs. Value at most 10%. | 2 px | They lead the head: each beat, yaw = `Mathf.Clamp(headYawRate × 0.2f, -25f, 25f)`, with the rate in degrees per second, measured locally from `Head`. No network cost. |
+| Lids | Open, Half and Closed meshes per eye, pivot at the eye centre. | 5 px | Blink every 2–6 s at random: Half, Closed, Closed, Half, Open, one per beat. Rest at Half when `NetworkPlayer.DrunkAmount` is at least 0.6, otherwise Open. |
 
-#### Replacement Mouths (Parented to `P_Head`)
+`EyeDriver` runs the pupils and lids.
 
-The mouth is a single child object under `P_Head` whose `MeshFilter.sharedMesh` swaps between **5 sculpted replacement pieces** (sculpted with a raised clay lip rim so the seam reads as a pressed-on clay piece, with a near-black interior of value `≤ 10%` against `≥ 60%` skin clay):
+### 7.2 Mouth
 
-| Mouth Shape | Opening Size (W × H) | When Used | Height at 15 m |
+One object under `P_Head`. Its `MeshFilter.sharedMesh` swaps between five pieces. Each piece has a raised lip
+rim, so the join reads as a piece pressed onto the head. The inside has a value of at most 10% against skin of
+at least 60%.
+
+| Shape | Opening | Used when | At 15 m |
 |---|---|---|---|
-| **1. `Closed`** | `14 cm` wide crease, `1.5 cm` deep | Silent & `Expression.Neutral` | 1 px |
-| **2. `Mid`** | `16 × 8 cm` dark cavity | Talking (medium voice envelope `0.15–0.55`) | **5 px** |
-| **3. `Wide`** | `18 × 12 cm` dark cavity | Talking (loud voice envelope `> 0.55`) | **7 px** |
-| **4. `Grimace`** | `18 × 5 cm` with bright teeth band | Stumbling (`Expression.Grimace`: `FallMeterFraction > 0.3`) | 3 px |
-| **5. `Shock`** | `9 × 11 cm` vertical "O" oval | Falling fast (`Expression.Shock`: `IsFallen` & speed `> 1 m/s`) | **7 px** |
+| Closed | 14 cm crease, 1.5 cm deep | silent and `Neutral` | 1 px |
+| Mid | 16 × 8 cm | voice 0.15–0.55 | 5 px |
+| Wide | 18 × 12 cm | voice above 0.55 | 7 px |
+| Grimace | 18 × 5 cm, with a bright band of teeth | `Grimace` | 3 px |
+| Shock | 9 × 11 cm upright oval | `Shock` | 7 px |
 
-> [!NOTE]
-> **Why there is no "Small" talking mouth:** A `4 cm` mouth opening is under `2.5 px` at `15 m` and fails readability tests. Talking alternates strictly between `Closed`, `Mid`, and `Wide`.
+There is no small talking mouth: a 4 cm opening is under 2.5 px at 15 m.
 
-#### Driving the Mouth from Voice (`VoiceLevel` & `MouthDriver`)
+**Voice**
 
-1. **`VoiceLevel` Component (on `Player`):** Exposes `public float Level` (`0–1`).
-   - **Phase 4A Prototype (`DebugVoice`):** Generates a synthetic `5 Hz` syllable wave (random peaks `0.4–1.0`) on one selected player. Pressing **`F8`** cycles which character is talking (ordered by `OwnerClientId`, then none).
-   - **Production Proximity Voice:** Each client measures the playback RMS loudness of each player's spatial audio stream locally and writes it to `VoiceLevel.Level`—requiring **zero extra network traffic**.
-2. **`MouthDriver` Component (on the Mouth object):**
-   - Smooths `VoiceLevel.Level` every frame into an asymmetric envelope (`attack = 0.03 s`, `release = 0.12 s`).
-   - On each clock beat, selects the mouth mesh:
-     - Envelope `< 0.15`: uses `KeyPoseEvents.CurrentExpression` (`Neutral → Closed`, `Grimace`, or `Shock`).
-     - Envelope `0.15–0.55`: `Mid` (talking overrides expression).
-     - Envelope `> 0.55`: `Wide`.
-   - **Anti-Flutter Minimum Hold:** Holds any chosen mouth shape for at least `1/12 s` (`83 ms`) even if the player sets pose holds to `Light` (`18 bps`) or `Off`.
+- **`VoiceLevel`,** on `Player`, has `public float Level`, 0–1.
+  - Phase 4A: `DebugVoice` makes a 5 Hz syllable wave (peaks 0.4–1.0) on one player. F8 cycles which player
+    talks, in `OwnerClientId` order, then nobody.
+  - Later: each client measures how loud each player's voice plays back, locally. No network traffic.
+- **`MouthDriver`,** on the mouth:
+  - Every frame, smooth `Level` into an envelope: attack 0.03 s, release 0.12 s.
+  - On each beat, pick the shape: envelope below 0.15 shows the expression (`Neutral` is Closed); 0.15–0.55
+    is Mid; above 0.55 is Wide.
+  - Keep each shape for at least 1/12 s, even with pose holds on Light or Off, so it doesn't flutter.
 
-### 7.2 Exaggerated Hands
+### 7.3 Hands
 
-- **Proportions:** Mitten-like clay gloves with a distinct thumb, **`20 cm` across** (`1.8×` the `11 cm` physics sphere), centred on `Hand_L/R`.
-- **Contrast:** Glove luminance value differs from both the body clay and the floor by **at least 30 points** (on a `0–100` scale).
-- **Replacement Poses (Swapped on Beats from `KeyPoseEvents.HandFlags`):**
-  1. **`Relaxed`:** Default lightly curved mitten.
-  2. **`Reach`:** Wide-open spread palm and thumb while grab input is held (`GrabLeft/Right`) but not yet holding an object.
-  3. **`Grip`:** Closed fist around a central hollow while `IsHolding` is true.
-- **Contact Squash:** On `GripL` / `GripR`, that hand's `Mesh` child squashes (`(1.08, 0.85, 1.08)`) for `squashBeats` (`2`) beats.
+- Mitten gloves with a thumb, 20 cm across (1.8 times the 11 cm sphere), centred on the hand.
+- Value at least 30 points (on 0–100) away from both the body clay and the floor.
+- Three poses, swapped on beats from `HandFlags`: **Relaxed**; **Reach**, an open hand while grab is held and
+  nothing is held; **Grip**, a closed fist while `IsHolding`.
+- On `GripL` or `GripR`, squash that hand's mesh for `squashBeats`.
 
-### 7.3 Oversized Shoes (Preserving Stair Physics)
+### 7.4 Shoes
 
-The foot box colliders (`0.16 × 0.10 × 0.30 m`) are tightly tuned for [`FootPlacement`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/FootPlacement.cs) on `Stairs15` and `Stairs20`. **Shoes never alter the physics colliders.**
+The foot colliders are tuned for the stairs. Shoes never change them.
 
-| Dimension | Physics Collider | Max Shoe Visual Size | Growth Direction & Rule |
+| | Collider | Shoe, at most | Rule |
 |---|---|---|---|
-| **Sole (Bottom)** | `y = -0.05 m` from `Foot` centre | Flush (`0 mm` downward) | **Never extend below the collider sole.** |
-| **Width (X)** | `0.16 m` | Up to **`0.22 m`** | Symmetric (`±3 cm` wider). |
-| **Height (Y)** | `0.10 m` | Up to **`0.16 m`** | Upward only (`+6 cm` chunkier). |
-| **Length (Z)** | `0.30 m` | Up to **`0.36 m`** | `+3 cm` past toe, `+3 cm` past heel, with **`2 cm` upward toe curl ("toe spring")** so the toe doesn't visually clip stair risers. |
+| Sole | 5 cm below the foot centre | flush | Never below the collider. |
+| Width | 0.16 m | 0.22 m | 3 cm wider on each side. |
+| Height | 0.10 m | 0.16 m | Upward only. |
+| Length | 0.30 m | 0.36 m | 3 cm past the toe and heel. The toe curls up 2 cm so it doesn't clip stair risers. |
 
-- **Contrast:** Shoe luminance value differs from the floor by **at least 30 points**.
-- **Landing Squash:** On `LandL` / `LandR`, that foot's `Mesh` child scales by `(1.08, 0.85, 1.08)` **and shifts its local Y down by `-7.5 mm`** for `squashBeats` (`2`) beats so the sole squashes flat against the floor.
+- Value at least 30 points away from the floor.
+- On `LandL` or `LandR`, squash that foot's mesh for `squashBeats`, lowered so the sole stays down (5.4).
 
-### 7.4 Player Identity
+### 7.5 Player identity
 
-- **Four Distinct Player Hues:** Spaced at least `60°` apart on the colour wheel, applied to the player's clothing (and skin/accent palette) via per-player material instances.
-- **Greyscale Value Check:** With URP Color Adjustments `Saturation = -100`, all four players must remain visually distinct from the floor and walls.
-- **Deterministic Assignment:** `hueIndex = (int)(OwnerClientId % 4)`. Requires zero new network state.
-- **Cosmetic Independence:** Because hats can get knocked off ([Section 7.7](#77-physical-cosmetics)), player identity always lives on the body/clothing hue, never solely on a hat.
+- Four clothing hues at least 60° apart, set per player through material properties.
+- **Greyscale check:** with Color Adjustments Saturation at −100, all four still differ from each other and
+  from the floor and walls.
+- `hueIndex = (int)(OwnerClientId % 4)`. No new network state.
+- Identity lives on the clothing, never only on a hat, because hats fall off.
 
-### 7.5 Hard Impacts: Dynamic Clay Dents
+## 8. Physical comedy
 
-Hard collisions leave a physical dent in the clay at the exact point of impact, holding for `6 s` (or until get-up recovery) before re-sculpting out over `3` beats.
+### 8.1 Dents
 
-#### 1. Host Collision Detection (`ImpactSensor` on All 13 Physics Bodies)
+A hard hit leaves a dent where it landed. It holds for 6 s, or until the character gets up, then smooths out
+over 3 beats.
 
-- **Approach Speed Measure (`Δv`):** On `OnCollisionEnter(Collision collision)` against any collider not belonging to this `Player`:
+**Detecting it (host).** `ImpactSensor` goes on all 13 bodies in phase 4B. In `OnCollisionEnter`, against a
+collider that isn't part of this `Player`:
+
+```csharp
+ContactPoint contact = collision.GetContact(0);
+float approachSpeed = Mathf.Abs(Vector3.Dot(collision.relativeVelocity, contact.normal));
+```
+
+- **Use approach speed, not `collision.impulse` divided by mass.** On a jointed ragdoll the impulse includes
+  joint and support forces, about 4 m/s on a standing foot.
+- **Feet** dent only while `IsFallen`, or when another Rigidbody hits them. Stepping off the 0.5 m drop lands
+  at about 3.1 m/s and would otherwise dent every step down.
+- **Which mesh.** If `contact.thisCollider` is a `Hand_L` or `Hand_R` sphere, dent that hand and use the hand's
+  Transform as `origin`. Otherwise dent the body's own part and use the body's Transform.
+- **Size.** Dent at 2.5 m/s or more. Depth is 1 cm at 2.5 m/s, rising linearly to 6 cm at 7 m/s, then clamped.
+  Radius = `Mathf.Clamp(2.5f * depth, 0.06f, half the part's smallest size)`.
+- **Where,** in metres along the origin's axes:
+
   ```csharp
-  ContactPoint contact = collision.GetContact(0);
-  float approachSpeed = Mathf.Abs(Vector3.Dot(collision.relativeVelocity, contact.normal));
+  Vector3 centre  = Quaternion.Inverse(origin.rotation) * (contact.point - origin.position);
+  Vector3 pushDir = Quaternion.Inverse(origin.rotation) * -contact.normal;
   ```
-  > [!IMPORTANT]
-  > **Why `relativeVelocity · normal` instead of `impulse / mass`:** On a jointed ragdoll, `collision.impulse` includes internal joint constraint forces and body weight support (~`4 m/s` on a standing foot), whereas `approachSpeed` measures true impact speed.
-- **Foot Filter:** `Foot_L` and `Foot_R` only trigger dents while `playerController.IsFallen` is true, **or** when hit by a moving `Rigidbody` prop/player (stepping off the `0.5 m` terrain drop lands at `~3.1 m/s` and would otherwise dent feet on normal steps).
-- **Part Mapping (`contact.thisCollider`):**
-  - If `contact.thisCollider` is the `Hand_L` or `Hand_R` `SphereCollider` (which is a compound collider on `Forearm_L/R`), route the dent to `P_Hand_L` or `P_Hand_R`.
-  - Otherwise, route the dent to that `Rigidbody`'s own `PuppetPart`.
-- **Dent & Flatten Thresholds:**
-  - **Dent (`Δv >= 2.5 m/s`):**
-    - `depth`: `1 cm` at `2.5 m/s`, rising linearly to `6 cm` at `7.0 m/s` (clamped).
-    - `radius`: `Mathf.Clamp(2.5f * depth, 0.06f, 0.5f * minWorldBoundsAxis)`.
-    - Stored relative to the **unscaled `PuppetPart` pose root** (`P_<Part>`):
-      ```csharp
-      Vector3 localCentre = Quaternion.Inverse(body.rotation) * (contact.point - body.position);
-      Vector3 localPushDir = Quaternion.Inverse(body.rotation) * (-contact.normal);
-      ```
-      *(Storing in unscaled metre offsets relative to the pose root makes the coordinates identical in Phase 4B scaled primitives and Phase 6 unit-scale sculpts!)*
-  - **Whole-Part Flatten (`Δv >= 5.0 m/s`):** In addition to the dent, the hit part's `Mesh` child squashes for `3` beats (`0.75` along the local axis most parallel to `contact.normal`, `1.15` on the other two axes).
 
-#### 2. Shader Displacement & Tangent-Free Normal Reconstruction (`SG_Dent`)
+  The numbers mean the same on a scaled primitive and on a sculpt.
+- **Flatten** at 5 m/s or more: as well as the dent, squash the hit mesh for 3 beats, 0.75 along its local axis
+  closest to `contact.normal` and 1.15 along the other two.
 
-Each part's material instance has two dent slots (`_DentA`, `_DentADir`, `_DentB`, `_DentBDir` as `Vector4`s; a new dent overwrites the older slot):
-- **`_DentA`:** `(localCentre.x, localCentre.y, localCentre.z, depth)`
-- **`_DentADir`:** `(localPushDir.x, localPushDir.y, localPushDir.z, radius)`
+**Network.** Put a reliable `[Rpc(SendTo.NotServer)] void DentRpc(byte body, bool hand, Vector3 centre,
+Vector3 pushDir, byte depthMm, byte radiusMm, bool flatten)` on `NetworkPose`. `body` indexes `Puppet.parts`,
+which matches `BalanceSensor.Bodies`.
 
-> [!WARNING]
-> **Critical Shader Graph Rule — Do Not Use Vertex `Tangent` / `Bitangent` in `SG_Dent`:**
-> Sculpted meshes in Phase 6 use Voxel Remesh and have **no UV map (`UV0`)**. Unity's `Calculate Mikktspace` outputs `(0, 0, 0)` tangents on UV-less meshes, which causes tangent-offset cross products to divide by zero (`NaN` black mesh)! Instead, construct an orthonormal tangent basis directly from the World Normal `N_ws` inside `SG_Dent`:
+**Timing.** Apply the dent on the next beat. Hold it 6 s, or until `RecoverStand`, then step it down on beats:
+two thirds, one third, gone.
 
-1. **Transform to World Metres:**
-   - Vertex position: `P_ws = Transform(Object → World, Type: Position, PositionOS)`.
-   - Dent centre: `C_ws = P_part_ws + Transform(Object → World, Type: Direction, Normalized: false, _DentA.xyz)` (or if using `P_<Part>/Mesh`, divide `_DentA.xyz` by `_BaseScale` before `Transform(Object → World, Position)`).
-   - Push direction: `D_ws = Normalize(Transform(Object → World, Type: Direction, _DentADir.xyz))`.
-2. **Evaluate Displacement Function `Displace(pointWS)`:**
-   - Distance `d = length(pointWS - C_ws)`.
-   - Inward push: `w = pow(1.0 - saturate(d / radius), 2.0)`. Offset by `D_ws * (depth * w)`.
-   - Displaced clay rim (volume conservation): `s = saturate(d / (1.4 * radius))`. Offset outward along `N_ws` by `depth * 0.3 * (4.0 * s * (1.0 - s))`.
-3. **Recompute Normals Without UVs:**
-   - Build two perpendicular unit vectors in the plane of `N_ws`:
-     ```hlsl
-     float3 helper = abs(N_ws.y) < 0.99f ? float3(0, 1, 0) : float3(1, 0, 0);
-     float3 T_ws = normalize(cross(helper, N_ws));
-     float3 B_ws = cross(N_ws, T_ws);
-     ```
-   - Evaluate `P0 = Displace(P_ws)`, `P_tan = Displace(P_ws + T_ws * 0.005)`, and `P_bitan = Displace(P_ws + B_ws * 0.005)`.
-   - New World Normal: `N_new_ws = normalize(cross(P_tan - P0, P_bitan - P0))`.
-   - Convert `P0` back with `Transform(World → Object, Type: Position)` and `N_new_ws` with `Transform(World → Object, Type: Normal)`.
+**Shader: the `SG_Dent` sub-graph.** Each material has two slots; a new dent replaces the older one.
 
-#### 3. Repair & Networking
+- `_DentA` = (centre, depth) and `_DentADir` = (pushDir, radius); the same for `_DentB`. Subtract the mesh
+  child's rest local position from `centre` before writing it (zero except on the placeholder shoes).
+- Work in "part metres": object space multiplied by `_BaseScale`. That is how the dent was measured, it holds
+  for primitives and sculpts alike, and it needs no tangents. Sculpts have no UVs, so they have no usable
+  tangents.
 
-- **Network:** When a dent triggers on the host, send a reliable `[Rpc(SendTo.NotServer)] void DentRpc(byte partIndex, Vector3 localCentre, Vector3 localDir, byte depthMm, byte radiusMm, bool flatten)` (where `partIndex` indexes `Puppet.parts`).
-- **Beat Sync & Repair:** Dents apply to the material on the next clock beat, hold static for `6.0 s` (or until `RecoverStand`), and then step down on beats over 3 steps (`2/3 depth → 1/3 depth → 0`).
+1. `P = Position (Object) × _BaseScale` and `N = normalize(Normal (Object) / _BaseScale)`.
+2. `Displace(p)`, with `d = length(p − C)`:
+   - push in: `p += D × depth × (1 − saturate(d / radius))²`;
+   - raised rim: `s = saturate(d / (1.4 × radius))`, then `p += N × depth × 0.3 × 4s(1 − s)`.
+3. Recompute the normal from two nearby points:
 
-### 7.6 Getting Up: Recovery Styles
+   ```hlsl
+   float3 helper = abs(N.y) < 0.99 ? float3(0, 1, 0) : float3(1, 0, 0);
+   float3 T = normalize(cross(helper, N));
+   float3 B = cross(N, T);
+   float3 P0 = Displace(P);
+   float3 N2 = normalize(cross(Displace(P + T * 0.005) - P0, Displace(P + B * 0.005) - P0));
+   ```
+4. Output position `P0 / _BaseScale` and normal `normalize(N2 × _BaseScale)`.
 
-Currently, a fallen character stays down until reset (`R`) teleports it back to spawn. Phase 4B adds in-place get-up recovery and compares three stop-motion styles behind a live switch.
+Dents need vertices 1–2 cm apart. Sculpts have that; primitives don't (section 11, phase 4B.1).
 
-#### Shared Recovery Rules & Codebase Integration
+### 8.2 Getting up
 
-1. **Get-Up Input:**
-   - Add `public bool GetUp;` to [`CharacterInput`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/CharacterInput.cs) and serialize it in `NetworkSerialize`.
-   - In [`LocalPlayerInput`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/LocalPlayerInput.cs), bind a `getUpAction` to `<Keyboard>/space` and `<Gamepad>/buttonSouth`.
-2. **Trigger & Carry Cancellation:**
-   - Recovery starts on the host when the owner presses `GetUp` at least `minDownSeconds` (`1.5 s`) after `Fell`, or automatically after `autoRecoverSeconds` (`8.0 s`) since the later of `Fell` or the last time another player's `HandGrab` held any body of this character.
-   - **Never Recover While Carried:** Add `bool IsHeld()` (true if any `HandGrab` in the scene has `HeldBody` in this character's `BalanceSensor.Bodies`). Check `IsHeld()` before starting recovery and every `FixedUpdate` during recovery. If grabbed—or if `CharacterReset` (`R`) fires—immediately cancel the recovery, destroy any Style A joint, and stay fallen (or reset).
-3. **Standing Methods on `PlayerController` & `FootPlacement` (Verified Against Codebase):**
-   - **Array Indexing Fix:** In [`PlayerController.cs` (lines 140–146)](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/PlayerController.cs#L140-L146), `spawnLocalPositions` and `spawnLocalRotations` are `Vector3[]` and `Quaternion[]` indexed by `int i` into `balanceSensor.Bodies`. Cache `int pelvisIndex` and `int torsoIndex` in `Awake()`.
-   - **`FootPlacement.PlantAt(Vector3 origin, Quaternion rot)`:**
-     - Note that [`FootPlacement.Awake` (lines 235–236)](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/FootPlacement.cs#L235-L236) already caches `spawnLocalPosition` and `spawnLocalRotation` relative to `playerRig.transform`.
-     - Extract `public void PlantAt(Vector3 origin, Quaternion rot)` so `PlantAtSpawn()` simply calls `PlantAt(playerRig.transform.position, playerRig.transform.rotation)`. Inside `PlantAt`, sample the terrain height under each foot via `Ground.At(spawnPosition, origin.y, out Vector3 planted, out Vector3 normal)` so standing up on stairs or slopes plants each ghost foot on its own step height!
-   - **`PlayerController.StandAt(Vector3 pelvisXZ, float yaw)` (Used by Styles B & C, and Style A timeout):**
-     1. Compute `Quaternion rot = Quaternion.Euler(0f, yaw, 0f)`.
-     2. Compute `Vector3 origin = pelvisXZ - (rot * spawnLocalPositions[pelvisIndex]).Flat()`.
-     3. Sample ground height: use `Ground.HeightAt(pelvisXZ, pelvis.position.y)` (or if missed on a high ledge, raycast down `3.0 m`), and set `origin.y = groundY - (spawnLocalPositions[footIndex].y - 0.05f)`.
-     4. **Overlap Safety Check:** Check `Physics.OverlapCapsule` covering the standing pelvis-to-head volume at `origin` (ignoring `ownColliders`). If blocked by world geometry, abort and stay fallen.
-     5. Teleport all 13 `bodies[i]` to `origin + rot * spawnLocalPositions[i]` and `rot * spawnLocalRotations[i]`, zeroing `linearVelocity` and `angularVelocity`.
-     6. Call `foot.PlantAt(origin, rot)` on both feet, set `headingYaw = yaw` (keeping `CurrentInput` without calling `ResetInputRpc`), clear fall meter/momentum/sway, set `IsFallen = false`, invoke `CharacterReset` (which clears `NetworkPlayer.isFallen` and increments `NetworkPose.resetCount` so clients snap!), and raise `RecoverStand`.
-   - **`PlayerController.Stand(float yaw)` (Used by Style A upon gentle set-down):**
-     1. Does **not** teleport bodies. Instead, calls a new `foot.PlantUnderPhysicalAnkle(yaw)` on both `FootPlacement`s (which sets `groundPoint` using `Ground.At(RealAnkle, RealSoleHeight, ...)` directly under where the physical feet landed so the legs don't snap!).
-     2. Clears fall meter, momentum, and sway, sets `headingYaw = yaw` and `IsFallen = false`, and raises `RecoverStand`.
-     3. **Crucial `NetworkPlayer` Hook:** In [`NetworkPlayer.OnNetworkSpawn`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/NetworkPlayer.cs#L70), subscribe `playerController.RecoverStand += OnCharacterReset;` (`isFallen.Value = false;`)! Without this, `NetworkPlayer.IsFallen` would stay `true` forever after Style A recovery, keeping `DrunkSway` disabled and the `"FALLEN"` HUD banner stuck on screen!
-4. **Clay Settle & Cosmetic Put-Back on `RecoverStand`:**
-   - Every machine boosts puppet chatter (`Puppet.BoostChatter(3f, 4)` — `3×` chatter for `4` beats) and repairs all active dents.
-   - The host despawns any detached loose cosmetics belonging to this player and clears `detachedSlots` (the "animator's hand" putting the hat back on).
+Today a fallen character stays down until R puts it back at spawn. Phase 4B adds getting up where it lies, in
+three styles you can switch live and compare.
 
-#### Comparison of the Four Recovery Styles
+**Input.** Add `public bool GetUp;` to `CharacterInput` and its `NetworkSerialize`. In `LocalPlayerInput`, bind
+it to Space and the gamepad's south button.
 
-| Style | Visual Experience | Technical Mechanism | Effort | Pros & Cons |
-|---|---|---|---|---|
-| **Style C: Jump Cut** *(Baseline)* | Fallen pose holds for 3 beats, then pops upright into standing pose with 4 beats of heavy settle chatter. | Host calls `StandAt` at `3f / beatsPerSecond` seconds after `RecoverStart`. | **Low** (2–3 h) | **Pros:** Instant, foolproof on any geometry.<br>**Cons:** Can read as a teleport glitch without strong chatter/sound. |
-| **Style A: Invisible Hand** *(Physics Lift)* | Puppet is lifted by the scruff of its upper back, dangles limp, rotates upright, sets its feet down, and wobbles free. *(Variant A2 adds a giant sculpted clay hand above the torso.)* | Host attaches a temporary world-anchored `ConfigurableJoint` to `Torso` (`positionSpring = 4000`, `damper = 1000`, `slerpDrive = 800/80`, **`maximumForce = float.MaxValue`**), animates `connectedAnchor` up (`0.8 s`), holds (`0.4 s`), lowers (`0.6 m/s`) until both soles are within `2 cm` of `Ground.HeightAt`, then calls `Stand(yaw)` and destroys the joint. | **Medium** (8–12 h) | **Pros:** Peak stop-motion charm and physical slapstick; limbs dangle naturally.<br>**Cons:** Can snag under low ceilings/stairs (mitigated by a `3.0 s` timeout that falls back to `StandAt`). |
-| **Style B: Clay Re-Sculpt** | Fallen puppet squashes into a central ball of clay over 4 beats, then extrudes back into the standing character over 6 beats. | Visual-only interpolation on each machine toward a lump mesh at the pelvis over 4 beats; host calls `StandAt` at `4f / beatsPerSecond` s; parts scale/move out from the lump over 6 beats. | **Medium** (6–10 h) | **Pros:** Unmistakably claymation (*Morph* style); never snags on geometry.<br>**Cons:** Briefly obscures the body silhouette for ~0.8 s. |
-| **Style D: Physics Scramble-Up** | Ragdoll rolls onto knees and pushes itself up. | Multi-stage IK/joint controller on the ghost rig. | **High** (20+ h) | **Skip** unless A, B, and C all fail in playtesting. |
+**When.** The host starts a recovery when the owner presses GetUp at least 1.5 s (`minDownSeconds`) after
+`Fell`, or by itself 8 s (`autoRecoverSeconds`) after the later of `Fell` and the last time another player held
+this character.
 
-> [!WARNING]
-> **Three C# Physics Traps to Avoid in Style A (`InvisibleHand`):**
-> 1. **`JointDrive.maximumForce` defaults to `0f` in C#:** When constructing `new JointDrive { positionSpring = 4000f, positionDamper = 1000f }`, you **must** also set `maximumForce = float.MaxValue`, or Unity PhysX applies **zero force**!
-> 2. **Set `joint.autoConfigureConnectedAnchor = false` first:** Before assigning `joint.anchor = new Vector3(0f, 0.5f, 0f)` (top centre of `Torso` in its scaled local space) and updating `joint.connectedAnchor` in world space each `FixedUpdate`.
-> 3. **Pause `TorsoLean` during Style A lift:** [`TorsoLean.FixedUpdate`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/TorsoLean.cs#L54) runs even while `IsFallen` (at 5% drive scale). Early-out of `TorsoLean.FixedUpdate` while `IsFallen` so it doesn't fight the lift joint.
+**Never while held.** `IsHeld()` is true when any `HandGrab`'s `HeldBody` is one of this character's `Bodies`.
+Check it before starting and every `FixedUpdate` during a recovery. If the character is grabbed, or
+`CharacterReset` fires, cancel: destroy any style A joint and stay down (or reset).
 
-### 7.7 Physical Cosmetics
+**New methods**
 
-Players wear cosmetic attachments (`Head`, `Face`, `Neck`, `Back`, `Hands/Feet`). `Head` and `Face` items (hats, glasses, false moustaches) are **detachable**: a hard jolt or blow knocks them off as real, networked physics objects that anyone can grab and throw.
+- **`FootPlacement.PlantAt(Vector3 origin, Quaternion rotation)`.** Move the body of `PlantAtSpawn` into it,
+  placing the foot at `origin + rotation * spawnLocalPosition`. `PlantAtSpawn` then calls it with the rig
+  root's position and rotation. In `PlantAt`, find the ground under the foot with `Ground.At`, so a foot on a
+  stair lands on its own step.
+- **`PlayerController.StandAt(Vector3 pelvisPoint, float yaw)`,** used by styles B and C and by style A's
+  timeout:
+  1. `rot = Quaternion.Euler(0, yaw, 0)`. Pass the owner's heading (`CurrentInput.HeadingYaw`); `FixedUpdate`
+     sets the heading from input every tick anyway.
+  2. `origin = pelvisPoint - (rot * spawnLocalPositions[pelvisIndex]).Flat()`. Find `pelvisIndex` and
+     `footIndex` in `Bodies` once, in `Awake`.
+  3. `groundY = Ground.HeightAt(pelvisPoint, pelvis.position.y)` and
+     `origin.y = groundY - (spawnLocalPositions[footIndex].y - 0.05f)`. The foot centre sits 5 cm above its
+     sole.
+  4. `Physics.OverlapCapsule` over the standing pelvis-to-head space, ignoring the character's own colliders.
+     If anything is in the way, give up, log it and stay down.
+  5. Move each body to `origin + rot * spawnLocalPositions[i]` with rotation `rot * spawnLocalRotations[i]`,
+     and zero its velocities, as `ResetCharacter` does.
+  6. Call `PlantAt(origin, rot)` on both feet; clear the fall meter, momentum and sway; set `IsFallen = false`;
+     invoke `CharacterReset` (this clears `NetworkPlayer.IsFallen` and bumps the reset count so clients snap);
+     raise `RecoverStand`. Unlike `ResetCharacter`, keep `CurrentInput`.
+- **`PlayerController.Stand()`,** used by style A after the set-down. No teleport:
+  1. On both feet call a new `FootPlacement.PlantUnderAnkle()`, which sets the ground point from
+     `Ground.At(RealAnkle, RealSoleHeight, …)`, right under the real foot, so the legs don't snap.
+  2. Clear the fall meter, momentum and sway; set `IsFallen = false`; raise `RecoverStand`.
+  3. `Stand` doesn't invoke `CharacterReset`, so `NetworkPlayer` must also clear its fallen flag on
+     `RecoverStand`. In the server block of `OnNetworkSpawn`, add `playerController.RecoverStand +=
+     OnCharacterReset;`, and remove it in `OnNetworkDespawn`.
 
-- **Attached State (Visual Only):** Child of its `PuppetPart` pose root (`P_Head`, `P_Torso`), with **no `Collider` and no `Rigidbody`**. Hidden whenever its slot bit is set in `NetworkVariable<byte> detachedSlots` on `NetworkPlayer`.
-- **Host Detach Calibration & Thresholds:**
-  - First, log peak Head angular speed and 3-step-averaged linear acceleration (`(v_now - v_3stepsAgo) / 0.03f`) over 5 minutes of drunk walking (`drunkAmount = 1.0`) without falling, and set defaults to `1.5×` that peak.
-  - Starting defaults: Head angular speed `> 12 rad/s`, 3-step acceleration `> 60 m/s²`, Head impact `Δv >= 3.0 m/s`, upside-down angle `> 110°` for `0.2 s`, or grabbed head pulled at `> 3.0 m/s`.
-- **Loose Prefab (`loosePrefab`):**
-  - Spawned by the host at **scene root** (never under `Player`, or [`BalanceSensor`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/BalanceSensor.cs#L54) would include its `Rigidbody`).
-  - Uses Layer 8 **`PlayerBody`** (ignored by [`Ground`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/Ground.cs#L23) raycasts so players never step on a hat as floor, while [`HandGrab`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/HandGrab.cs#L106) can still grab and throw it!).
-  - Components: `NetworkObject`, `Rigidbody` (`0.2–0.5 kg`), convex `Collider`, server-authoritative `NetworkTransform` + `NetworkRigidbody`, `LooseCosmetic`, and a visual child with a world-hold `PuppetPart` on the shared clock.
-  - Ignores collision with the owner's colliders for `0.5 s` on spawn so it pops cleanly off the head (`head.GetPointVelocity(point) + Vector3.up * 1.0f`).
-- **Putting It Back On:** Returns to the owner when the owner's `Head` or `Hand_L/R` collider touches it (after a `1.0 s` grace period), when `RecoverStand` fires, or after a `60 s` ground timeout.
-- **Soft Items (Scarf Ends, Bobbles):** Visual-only 3-segment spring chain (`spring = 60, damping = 6`), simulated every frame on each machine (the *Spider-Verse* rule: simulate physics on ones) and sampled onto the mesh only on clock beats.
+**When `RecoverStand` fires,** every machine calls `Puppet.BoostChatter(3f, 4)` (3 times the chatter for 4
+beats) and repairs all dents. The host puts back any loose cosmetics (8.3).
 
----
+**The styles**
 
-## 8. The Clay Surface Shader (`SG_Clay`)
-
-One master Shader Graph (`SG_Clay`) drives every character part, replacement piece, cosmetic, and clay prop.
-
-### 8.1 Lighting & Optical Response (URP 17.6.0)
-
-Real plasticine has a soft, subsurface-scattered diffuse falloff and a dual-layer specular response (a broad waxy base plus a sharper skin-oil sheen on fingerprint ridges).
-
-1. **Master Target Settings (`SG_Clay` Graph Inspector):**
-   - **Target:** `Universal` $\rightarrow$ **Material:** `Lit`
-   - **Clear Coat:** **Ticked (✓)** *(Exposes `Coat Mask` and `Coat Smoothness` on the Fragment node, enabling URP 17.6's native two-layer dielectric BRDF in Forward+).*
-   - **Fragment Normal Space:** **`Object`** *(Critical: bypasses vertex tangents so UV-less Voxel Remeshed sculpts shade and normal-map cleanly without `NaN` errors!).*
-2. **Base Matte Layer vs. Oily Fingerprint Coat:**
-   - **Base `Smoothness`:** `0.18–0.20` (broad, matte waxy clay body).
-   - **`Coat Mask`:** `fingerprintMask * 0.35` (skin oil and petroleum jelly sit on the raised fingerprint ridges).
-   - **`Coat Smoothness`:** `0.65` (gives the distinct oily specular glint seen on studio clay puppets).
-3. **Soft Subsurface Terminator (Wrapped Diffuse):**
-   - Add a tiny custom lighting wrap term into `Emission` (`Albedo * Albedo * 0.08 * smoothstep(-0.3, 0.2, dot(WorldNormal, MainLightDirection))`) so the shadow edge has a warm, soft waxy roll-off instead of a harsh CG terminator.
-
-> [!CAUTION]
-> **Why Not Use Shader Graph 17.6.0's `Custom Lighting` Sample (`Lit Oren Nayar`)?**
-> Source inspection of `com.unity.shadergraph@17.6.0/Samples~/CustomLighting` confirmed that `Lit Oren Nayar` only calls `GetMainLight()` (Directional Light) and has **no `AdditionalLights` loop**—meaning it renders **100% black** under `LookDev`'s three Spot Lights! Furthermore, the sample uses an `Unlit` target, which does not write fragment normals to URP's `DepthNormals` pass and breaks normal-mapped SSAO. Stick with **`URP Lit` + `Clear Coat`**.
-
-### 8.2 Colour, Grime, Specks & Clothing Seams
-
-- **Vertex Colour (`Col` Attribute) Holds Variation, Not Hue:**
-  - **`R` channel:** Value streaks (`0.5` is neutral; `< 0.5` darkens, `> 0.5` lightens).
-  - **`G` channel:** Crevice grime and dark mouth interiors (`1.0` darkens toward grime tint).
-  - **`B` channel:** Optional secondary accent mask (`0.0` primary material colour, `1.0` secondary colour).
-  - *Note on Clothing Boundaries:* In Phase 6, sculpt clothing cuffs, collars, and waistlines as **overlapping clay geometry** (or assign a second material slot `M_Clay_Cloth` vs `M_Clay_Skin`) rather than relying solely on vertex colour `B` across a single decimated cylinder. After `Decimate (Collapse)` down to 2,500 triangles, vertices are `1.5–2.5 cm` apart, which turns painted vertex-color borders into jagged sawtooth zigzags, whereas an overlapping sculpted cuff gives a crisp edge and real 3D clay thickness!
-- **Dust, Lint & Specks:** Sampled from a tiling triplanar mask (`T_Specks_M`, or packed into the `B/A` channels of the fingerprint texture) so specks stay sharp regardless of mesh vertex density.
-
-### 8.3 Fingerprints & Triplanar Mapping
-
-- **Puppet Scale (`9.25×`):** Fingerprints are scaled as on the `20 cm` maquette (`Tile = 1.08`, so a `10 cm` clay slab covers `0.925 m` on the `1.85 m` character, making a `1.5 cm` thumb smudge `14 cm` / `26 px` tall at `5 m`).
-- **Shader Graph `Triplanar` Node Settings:**
-  - Set `Triplanar` **Type = `Normal`**, **Input Space = `Object`**, and **Normal Output Space = `Object`** (matching `SG_Clay`'s `Fragment Normal Space = Object`).
-  - **Scale Correction Without Squash Swimming:** Multiply `Position (Object)` by a `Vector3` material property **`_BaseScale`** (set once from `source.lossyScale` on scaled primitives, and `(1, 1, 1)` on Phase 6 sculpted meshes) before wiring into `Triplanar.Position`. **Do not** use the `Object` node's live `Scale` output, or fingerprints will swim across the surface whenever a part squashes on landing/impact!
-- **Distance Fade:** Fade normal strength from `100%` at `3 m` camera distance to `0%` at `8 m` (with mipmaps and `Aniso Level = 4`) so prints never shimmer at distance.
-- **Creating Your Own Fingerprint Normal Maps on Linux (Phase 3 Step 6):**
-  - Start with a stock fingerprint normal map (e.g., `cgbookcase` / `joebinns/clay`).
-  - To capture your own thumbprints without Windows-only tools:
-    - **Method A (Photometric Stereo in Blender Compositor — Native Linux):** Photograph a `10 cm` flat clay slab pressed with your thumbprints from directly above using a tripod, manual exposure, and 4 raking lamp directions (**East, West, North, South**). In Blender's **Compositor**, combine the 4 greyscale images using:
-      $$N_x = I_{\text{East}} - I_{\text{West}}, \quad N_y = I_{\text{North}} - I_{\text{South}}, \quad N_z = \sqrt{\max(0, 1 - N_x^2 - N_y^2)}$$
-      Normalize `(Nx, Ny, Nz)`, remap `-1..1` to `0..1` (`× 0.5 + 0.5`), and make seamless in GIMP (`Filters > Map > Tile Seamless`) or Krita. *(Note: Materialize only filters single images and does not do 4-light photometric stereo.)*
-    - **Method B (Direct Blender Sculpt Bake — Fastest):** Subdivide a flat `10 × 10 cm` plane in Blender, stamp thumbprints across it with the `Clay Thumb` brush (with X/Y tiling symmetry enabled in Sculpt Mode), and bake `Normal` and `Height` to a `1024 × 1024` texture in Cycles. Repeat 3 times for the 3 boil variants!
-
-### 8.4 Motion-Driven Boil & GPU Batching Rules
-
-- **Non-Exposed Global Beat Property:** In `SG_Clay`'s Blackboard, create `Float` property `_StopMotionBeat`, **untick Exposed**, and set **Scope = `Global`** (exposed properties live in the per-material CBUFFER and ignore `Shader.SetGlobalFloat`).
-- **3-Variant Texture Swap:** Cycle between 3 fingerprint/noise variants using `variant = (_StopMotionBeat + floor(_PartSeed * 3.0)) % 3` (never slide UVs, which looks like scrolling CG).
-- **Local Boil Where Handled (`_BoilMotion`):**
-  - On each beat, `PuppetPart` computes `boilMotion = Mathf.Clamp01(metresMovedSinceLastBeat / 0.05f)`.
-  - Multiply both the normal-variant blend and vertex displacement (`5 mm` along vertex normal from a baked 3D/triplanar noise texture) by `_BoilMotion` so stationary parts remain dead still.
-  - Note: Disable vertex displacement on Unity's default `Cube` primitive (`Pelvis`, `Torso`, `Foot_L/R`, `Nose` in Phases 3–4B) because `Cube` has hard split vertex normals that crack open at corners when displaced along the normal.
-- **SRP Batcher & Memory Cleanup Rules (`renderer.material`):**
-  - Instantiate `mat = renderer.material` once in `PuppetPart.Awake()` (preserves URP SRP Batcher compatibility, whereas `MaterialPropertyBlock` breaks it).
-  - **Prevent Memory Leaks:** Always call `if (mat != null) Destroy(mat);` inside `PuppetPart.OnDestroy()` so despawned players and loose hats do not leak unmanaged `Material` instances!
-  - **Avoid Redundant GPU Uploads:** Because `PC_RPAsset.asset` has `GPU Resident Drawer` enabled, only call `mat.SetFloat("_BoilMotion", boilMotion)` on a beat when `Mathf.Abs(boilMotion - lastBoilMotion) > 0.01f`.
-
-### 8.5 Performance & Triangle Budget
-
-| Part | Max Triangles | Vertex Spacing (~cm) |
-|---|---|---|
-| `Head` | 8,000 | ~0.8 cm |
-| `Torso` | 4,000 | ~1.4 cm |
-| `Pelvis` | 2,500 | ~1.4 cm |
-| Each `UpperArm`, `Forearm`, `Thigh`, `Shin` (×8) | 2,500 each (20,000 total) | ~1.2 cm |
-| Each active `Hand` pose (×2) | 2,000 each (4,000 total) | ~1.0 cm |
-| Each `Foot` / Shoe (×2) | 1,500 each (3,000 total) | ~1.5 cm |
-| `Nose` + active `Face` pieces (eyes, pupils, lids, mouth) | 5,500 total | ~0.5 cm |
-| Worn `Cosmetics` (all slots combined) | 1,500 total | ~1.5 cm |
-| **Total Active per Player** | **~48,500 triangles** | **~25 SRP-batched renderers** |
-
----
-
-## 9. Comfort, Accessibility, and Photosensitivity
-
-Stepped animation and luminance flicker at `12 Hz` sit directly inside the `3–30 Hz` band most likely to trigger simulator sickness or photosensitive reactions. Every effect has an independent player setting (exposed via the `F9` debug window in Phase 1 and the UI settings menu in Phase 9):
-
-| Setting | Options | Default | Notes |
+| Style | What you see | How it works | Effort |
 |---|---|---|---|
-| **Pose Holds** | `Off` (every frame) / `Light` (18 bps, no extra hold, no chatter) / `Full` | `Full` *(subject to Phase 1 playtest)* | Global master preset for motion stepping. |
-| **Beats Per Second** | `8` / `12` / `18` / `24` | `12` | Active when Pose Holds = `Full`. |
-| **Root-Smooth Hold** | `On` / `Off` | *Set by Phase 1 playtest* | Keeps pelvis smooth with camera while limbs step. |
-| **Puppet Chatter** | `On` / `Off` | `On` | Per-beat micro pose error on moved parts. |
-| **Surface Boil** | `On` / `Off` | `On` | Fingerprint & lump variant swapping on moved parts. |
-| **Exposure Flicker** | `Off` / `On (±1% luminance)` | **`Off`** | Clamped in code to `±3%` (`±0.0426 EV`); WCAG 2.3.1 / Xbox 117 flash threshold is `10%`. |
-| **Film Grain** | `On` / `Off` | `On` | URP Volume `Thin1`, intensity `0.15`. |
-| **Tabletop Depth of Field** | `On` / `Off` | *Per Phase 3 scale look* | Bokeh DoF when using the miniature tabletop look. |
-
-- **Photosensitivity Verification:** Before release (Phase 9 Step 5), record 2 minutes of gameplay with maximum flicker and boil at 1080p 60 fps and verify zero flash violations using **EA's open-source IRIS analyser** (builds natively on Linux).
-
----
-
-## 10. World Lighting, Camera, and Post-Processing
-
-- **Anti-Aliasing (Never Use TAA or STP):** Temporal anti-aliasing blends previous frames into the current frame, ghosting every 12 bps pose snap and boil swap.
-  - In [`Assets/Settings/PC_RPAsset.asset`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/Settings/PC_RPAsset.asset), change `m_MSAA` from `1` (Off) to **`4` (4× MSAA)**, or enable **SMAA** on `Main Camera`.
-- **Dedicated Volume Profiles (Avoid Overwriting `SampleSceneProfile.asset`):**
-  - Currently, both `PC_RPAsset`'s Default Volume Profile and `TestScene`'s Global Volume reference the same [`Assets/Settings/SampleSceneProfile.asset`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/Settings/SampleSceneProfile.asset). Create separate profile assets (`LookDevProfile.asset` and `TestSceneProfile.asset`) so scene tweaks don't overwrite project defaults.
-  - Ensure **Motion Blur** is removed/disabled on all profiles.
-- **Studio Set Lighting:**
-  - Light play areas like a physical stop-motion stage: **Spot Lights** positioned `3–5 m` from the action with `Range <= 15 m` so the far edge of the room falls off by at least 1 stop.
-  - **Key Light:** Warm `3200 K` halogen/tungsten colour temperature, soft shadows enabled.
-  - **Practical Lamps:** Visible emissive lamp meshes inside the set.
-- **Physics Props:** Dynamic grabbable props (boxes, bottles, loose hats) get a `PuppetPart` child on the shared `StopMotionClock` so a held prop and the hand gripping it step on the exact same frame.
-
----
-
-# Part III — Step-by-Step Build Plan
-
-## Phase 1 — Stop-Motion Prototype & Blind Playtest (30–40 h, 4 weeks)
-
-**Branch:** `feature/stop-motion-prototype`  
-**Goal:** Build the clock, visual puppet hierarchy, and network key-pose synchronization on the existing primitive meshes, then run a blind playtest to verify that stepped motion feels responsive and comfortable.
-
-### Step 1.1 — `StopMotionClock` (3–4 h)
-- Create `Assets/DrunkCharacter/Scripts/StopMotionClock.cs` and place it on a `StopMotionClock` GameObject in `TestScene`.
-- **Serialized fields** (defaults from [Section 13](#13-master-dials-reference-table)): `holdsOn`, `beatsPerSecond` (`12`), `extraHoldBeats` (`1`), `timingVariation` (`0`), `rootSmooth` (`true`), `chatterDegrees` (`0.75f`), `chatterMetres` (`0.004f`), `idleAmplitude` (`0.5f`), `squashBeats` (`2`).
-- **Static API:** `Instance`, `int Beat`, `event Action Beaten`, `static void RequestBeat(bool holdExtra = true)`, plus `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]` static reset.
-- **Done when:** Logging `Beat` shows 12 beats/s, and pressing a test key calling `RequestBeat(true)` fires an immediate beat followed by a 2-interval hold (`~0.167 s`).
-
-### Step 1.2 — Host Gameplay Signals (4–6 h)
-- Add `public event Action Landed` to [`FootPlacement.cs` (line 677)](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/FootPlacement.cs#L677).
-- Add `public event Action Gripped` to [`HandGrab.cs` (line 138)](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/HandGrab.cs#L138).
-- Add `public event Action StumbleStarted` to [`PlayerController.cs` (line 286)](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/PlayerController.cs#L286).
-- Create `Assets/DrunkCharacter/Scripts/ImpactSensor.cs` and attach it to `Pelvis`, `Torso`, and `Head` (fires once per fall when `IsFallen` and `approachSpeed > 1.0 m/s` against a non-self collider).
-- **Done when:** Each event logs cleanly once per action in host Play Mode (walk, grab, stumble, fall impact).
-
-### Step 1.3 — `KeyPoseEvents` (3–4 h)
-- Create `Assets/DrunkCharacter/Scripts/KeyPoseEvents.cs` on `Player` as specified in [Section 5.4](#54-keyposeevents-and-network-synchronization) (subscribing to host signals, tracking pelvis horizontal velocity reversals, polling `HandFlags` and `CurrentExpression`, raising `Snapped` on `CharacterReset`, and calling `StopMotionClock.RequestBeat(true)` on every `KeyPose`).
-- **Done when:** Logs show every `KeyPose` (including `LandL`/`LandR` and `GripL`/`GripR`) and `Reversal` when strafing left-to-right.
-
-### Step 1.4 — Network Replication in `PoseFrame` & `NetworkPose` (3–4 h)
-- Add the `byte` counters, `HandFlags`, and `Expression` to [`PoseFrame.cs`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/PoseFrame.cs).
-- Populate them in [`NetworkPose.SendPose`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/NetworkPose.cs#L60) on the host.
-- In [`NetworkPose.Update`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Scripts/NetworkPose.cs#L101) on clients, initialize baseline counters from the first received frame (and on `ResetCount` changes), raise `KeyPoseEvents` whenever `to`'s counters advance, and raise `Snapped` when `from.ResetCount != to.ResetCount`.
-- **Done when:** Running Multiplayer Play Mode (MPPM) shows identical `KeyPose` logs on both Host and Client for the same character, with zero spurious event burst when the client first spawns.
-
-### Step 1.5 — `Puppet` and `PuppetPart` Scripts (4–5 h)
-- Create `Assets/DrunkCharacter/Scripts/Puppet.cs` (holds `public List<PuppetPart> parts`) and `Assets/DrunkCharacter/Scripts/PuppetPart.cs` implementing [Section 5.3](#53-hierarchy--transform-rules-for-puppetpart) and [Section 5.6](#56-puppetpart-behaviour-specification).
-- Support `source`, `pelvisPart`, `parentPart` (for `P_Hand_L/R` to follow `P_Forearm_L/R`'s chatter without wrist gaps), `Transform meshChild`, and `Vector3 baseScale`.
-
-### Step 1.6 — Build the `Puppet` Hierarchy in `Player.prefab` (2–3 h)
-Open [`Assets/DrunkCharacter/Prefabs/Player.prefab`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/DrunkCharacter/Prefabs/Player.prefab) in Prefab Mode:
-1. Create an empty child `Puppet` under `Player` at local position `(0, 0, 0)`, rotation `0`, scale `(1, 1, 1)` and attach `Puppet`.
-2. For each of the 15 main parts (`Pelvis`, `Torso`, `Head`, `UpperArm_L`, `UpperArm_R`, `Forearm_L`, `Forearm_R`, `Hand_L`, `Hand_R`, `Thigh_L`, `Thigh_R`, `Shin_L`, `Shin_R`, `Foot_L`, `Foot_R` — in that exact index order in `Puppet.parts`):
-   - Create an empty child under `Puppet` named `P_<source>` (at scale `(1, 1, 1)`), and **copy the source's world position and rotation into `P_<source>` in Prefab Mode** *(so the character stands in its T/A-pose in Edit Mode and exports cleanly to `Guide.fbx` in Phase 6!)*.
-   - Create an empty child `Mesh` under `P_<source>`, set `Mesh.localScale = source.lossyScale`, and copy the `MeshFilter` and `MeshRenderer` from `source` onto `Mesh`.
-   - For `Nose`: create `P_Nose` as a child of **`P_Head`**, set its local position/rotation to match `Nose`'s offset from `Head` (`(0, -0.05, 0.55)`), and put its `MeshFilter`, `MeshRenderer`, and `lossyScale` `(0.0648, 0.0648, 0.108)` on `P_Nose/Mesh`.
-   - Remove the `MeshRenderer` and `MeshFilter` from all 16 physics source objects (keeping all colliders and rigidbodies untouched).
-- **Done when:**
-  - [ ] In Edit Mode (Prefab view), the `Puppet` meshes align 100% with the physics colliders (not stacked at `(0,0,0)`).
-  - [ ] In Play Mode with holds Off, the character looks identical to `main`.
-  - [ ] `BalanceSensor.Bodies.Length` is still `13` and no object under `Puppet` has a `Collider` or `Rigidbody`.
-
-### Step 1.7 — Live Debug Window (`F9`) & Blind Presets (`1–4`) (2–3 h)
-- Create an IMGUI debug window toggled by **`F9`** exposing all [Section 9](#9-comfort-accessibility-and-photosensitivity) dials live, plus number keys **`1–4`** that switch the four blind playtest presets ("Preset A/B/C/D") without revealing their parameters on screen.
-
-### Step 1.8 — Multiplayer Latency Verification (`Mobile4G`) (2 h)
-- Test with MPPM Player 2 as Client using `NetworkSession`'s `Mobile4G` preset (`100 ms ±20 ms, 4% loss`, cycled with `F10`).
-- **Done when:** Stepping frame-by-frame (`Ctrl+Alt+P`) while grabbing a prop or another player confirms the gripping hand and held body step on the exact same rendered frame on both Host and Client.
-
-### Step 1.9 — Playtest Logger & Blind Playtest (8–12 h)
-- Create `Assets/Sandbox/Debug/PlaytestLogger.cs` logging `Fell`, `StumbleStarted`, stumble recoveries, grab attempts, `Gripped`, and `Stairs15` start/finish times to `Logs/playtest_<player>_<variant>.csv`.
-- Run the blind playtest protocol in [Section 12.1](#121-motion-playtest-phase-1).
-
-### Phase 1 Done When:
-- [ ] All four presets (`1–4`) switch live in Play Mode.
-- [ ] `SwayBench.Run` on seeds `1–5` produces fall times within `±1.0 s` of `main` (proving physics is 100% unchanged).
-- [ ] Playtest results, default beat rate, and `rootSmooth` default are logged in [Section 15](#15-decision-log).
-- [ ] **Phase 1 Gate passed** (or if no stepped preset passed, holds are defaulted to `Off` and logged in Section 15 before proceeding to Phase 2).
-
----
-
-## Phase 2 — Physical Maquette & Style Frame (12–18 h, 2 weeks)
-
-**Goal:** Establish your physical reference proportions, surface texture, and lighting target in the real world before touching shaders or Blender.
-
-### Step 2.1 — Reference Board (2 h)
-- Collect 30–50 images/clips into `ArtSource/References/{films,games,puppets,drunk_poses}` (at least 5 per folder), spanning heavy-boil clay (*Morph*, Adam Elliot) and smooth studio clay (Aardman features, *Harold Halibut*).
-
-### Step 2.2 — Materials & Tools (1 h; order early)
-- **Clay:** `2 lb (1 kg)` Chavant NSP Medium (sulphur-free, holds crisp detail for the maquette) + `1 lb (450 g)` Newplast or Van Aken Plastalina (to feel classic animation plasticine).
-- **Armature & Tools:** `1.5 mm` and `2.0 mm` aluminium armature wire (`5 m` each), wire-loop + ball-stylus tool set, flat and cone silicone colour shapers, petroleum jelly, and a microfibre cloth.
-
-### Step 2.3 — Orthographic Ragdoll Print at `1 : 9.25` Scale (1 h)
-- In Unity's Scene view (orthographic front and side views), screenshot the standing character and print both views so head-crown to foot-sole measures **exactly `20.0 cm`** on paper.
-
-### Step 2.4 — Wire Armature & Segmented Maquette Sculpt (6–8 h)
-- Mark the 12 joint centres on the printout and bend the `2 mm` wire (spine/legs) and `1.5 mm` wire (arms) within `2 mm` of the marks.
-- Sculpt the maquette in separate overlapping pieces (Option A) matching the `1 : 9.25` readability sizes:
-
-| Feature | Game Scale Size | Maquette Size (`÷ 9.25`) |
-|---|---|---|
-| Head diameter | `36 cm` | **`3.9 cm`** |
-| Eye whites | `8 cm` | **`9 mm`** |
-| Mouth (`Wide`) | `18 × 12 cm` | **`19 × 13 mm`** |
-| Mitten gloves | `20 cm` across | **`22 mm`** across |
-| Shoes | `22 × 36 × 16 cm` max | **`24 × 39 × 17 mm`** max |
-
-- Decide on the base clothing silhouette (e.g. coat, sweater, scarf, baggy trousers) and log it in [Section 15](#15-decision-log).
-
-### Step 2.5 — Lit Tabletop Style Frame & Orthographic Reference Photos (2–3 h)
-- Build a small cardboard/fabric tabletop corner and light the maquette with three desk lamps:
-  - **Key:** `45°` front-left and above (`~3000 K` warm bulb).
-  - **Fill:** Opposite key at ~50% intensity.
-  - **Rim:** Behind and above the maquette to catch grazing clay edges.
-- Shoot `ArtSource/StyleFrame.jpg` with a phone on a tripod at maquette chest height (manual exposure) and record camera distance and height in `ArtSource/StyleFrame.txt`.
-- Shoot flat-lit front and side reference photos against plain paper with a ruler in frame (`ArtSource/Maquette/Front.jpg`, `Side.jpg`).
-
-### Phase 2 Done When:
-- [ ] Maquette joint centres sit within `2 mm` of the `20 cm` ragdoll printout.
-- [ ] `ArtSource/StyleFrame.jpg`, `ArtSource/StyleFrame.txt`, and `ArtSource/Maquette/{Front,Side}.jpg` exist.
-- [ ] Clothing silhouette decision is logged in [Section 15](#15-decision-log).
-
----
-
-## Phase 3 — Look-Dev Scene & Clay Material (22–32 h, 3 weeks)
-
-**Goal:** Build `LookDev.unity` and the master `SG_Clay` shader so the primitive character already looks unmistakably like photographed plasticine.
-
-### Step 3.1 — Learn Shader Graph Basics (3–4 h)
-- Complete Unity Learn's *"Get started with Shader Graph"* tutorial.
-
-### Step 3.2 — Build `Assets/Sandbox/LookDev.unity` (2–3 h)
-- Create a dedicatedVolume Profile asset `Assets/Settings/LookDevProfile.asset` (with `Tonemapping = Neutral`, `Motion Blur = Off`) so you don't overwrite `SampleSceneProfile.asset`.
-- Place the standing `Player` prefab on a neutral grey floor (`RGB 128, 128, 128`), add one Reflection Probe, match the three Spot Lights (Key, Fill, Rim) to your `StyleFrame.jpg`, and set up two cameras: **Gameplay (`5 m`)** and **Close-Up (`1.5 m`)**.
-
-### Step 3.3 — Build `SG_Clay` and `M_Clay_Base` Incrementally (8–12 h)
-Verify each sub-step in `LookDev.unity` before moving to the next:
-1. **Graph Setup:** Create `SG_Clay` (`Universal > Lit`). In Graph Inspector, **tick `Clear Coat`** and set **Fragment Normal Space = `Object`**.
-2. **Base Colour & Vertex Attribute:** Read `Vertex Color` (converted `sRGB → Linear`), apply `R` value streaks (`lerp(0.85, 1.15, R)`) and `G` crevice grime over the `_BaseColor` property, and blend in a triplanar speck mask (`T_Specks_M`).
-3. **Scale-Corrected Object-Space Triplanar Normals:** Add a `Triplanar` node (`Type = Normal`, **Input Space = `Object`**, **Normal Output Space = `Object`**, `Tile = 1.08`) sampling the stock fingerprint normal map. Feed `Position (Object) * _BaseScale` into `Triplanar.Position` (where `_BaseScale` is set from `Mesh.localScale` in `PuppetPart.Awake`).
-4. **Dual-Layer Clay Specular (Clear Coat):** Set base `Smoothness = 0.18`. Wire the fingerprint ridge mask into **`Coat Mask` (`× 0.35`)** and set **`Coat Smoothness = 0.65`**.
-5. **Soft Subsurface Wrap:** Add the wrapped diffuse term ([Section 8.1](#81-lighting--optical-response-urp-1760)) into `Emission` and compare in `LookDev` against standard single-lobe `Lit`. Log your lighting setup in [Section 15](#15-decision-log).
-6. **Distance Fade:** Fade fingerprint normal strength and `Coat Mask` from `100%` at `3 m` to `0%` at `8 m`.
-7. **Motion-Driven Boil:** Add non-exposed global `_StopMotionBeat`, per-part `_PartSeed`, and `_BoilMotion` to swap between 3 fingerprint/noise variants on moved parts ([Section 8.4](#84-motion-driven-boil--gpu-batching-rules)). Update `PuppetPart` to write `_PartSeed` in `Awake`, update `_BoilMotion` on beats when changed, and call `Destroy(mat)` in `OnDestroy`.
-8. **Boil Vertex Displacement:** Displace vertices along `Normal (Object)` by `5 mm × _BoilMotion` on spheres and capsules only (keep `_DisplacementStrength = 0` on Unity `Cube` primitives until Phase 6).
-
-### Step 3.4 — Custom Fingerprints, Style Sheet, Rate & Scale-Look Decisions (6–9 h)
-- *(Optional now or in Phase 6)* Capture or bake your own 3 fingerprint normal map variants ([Section 8.3](#83-fingerprints--triplanar-mapping)).
-- Record an 8-second `360°` turntable video of a clay sphere in `LookDev` using **Unity Recorder**.
-- Write `Docs/stop-motion-style-sheet.md` (6–8 hex palette swatches, smoothness/coat values, mark sizes in game cm).
-- Compare `8`, `12`, and `18` beats/s in `LookDev` with the clay material active, and compare **Tabletop Bokeh DoF** (`50 mm, f/2.8`) vs. **Full-Size Deep Focus**. Log both choices in [Section 15](#15-decision-log).
-
-### Phase 3 Done When:
-- [ ] A `LookDev` gameplay-camera screenshot sits side-by-side with `ArtSource/StyleFrame.jpg`.
-- [ ] At least 2 of 3 people unfamiliar with the project, asked *"What material is this character made of?"*, answer *"clay"* or *"plasticine"* unprompted.
-- [ ] Lighting model, beat rate, and scale-look choices are logged in [Section 15](#15-decision-log).
-
----
-
-## Phase 4A — Readability Prototype: Face, Voice, Hands, Feet (25–35 h, 3 weeks)
-
-**Goal:** Prove long-range visual readability (`5–15 m`) using scaled primitive placeholders before sculpting final meshes.
-
-1. **Placeholder Face Pieces under `P_Head` (3–4 h):** Add eye whites, pupils, 3 eyelid shapes (`Open`, `Half`, `Closed`), and 5 mouth shapes (`Closed`, `Mid`, `Wide`, `Grimace`, `Shock`) as collider-free mesh objects under `P_Head` (at `P_Head` scale `(1, 1, 1)`) using the exact [Section 7.1](#71-face--voice-driven-mouth) sizes and contrast values.
-2. **`VoiceLevel`, `DebugVoice` (`F8`), and `MouthDriver` (5–7 h):** Implement synthetic `5 Hz` voice testing (`F8` cycles speaker) and `MouthDriver` (envelope `0.03 s / 0.12 s`, expression fallback, `1/12 s` minimum hold).
-3. **`EyeDriver` (3–4 h):** Implement pupil yaw lead (`0.2 s` clamped to `±25°`), random 5-beat blinks (`2–6 s`), and `DrunkAmount >= 0.6` half-lid rest pose.
-4. **Placeholder Gloves & `HandPoseDriver` (3–4 h):** Add `20 cm` high-contrast placeholder gloves on `P_Hand_L/R/Mesh` swapping between `Relaxed`, `Reach`, and `Grip` on beats from `HandFlags`.
-5. **Placeholder Shoes & Stair Clearance Check (2–3 h):** Size `P_Foot_L/R/Mesh` to [Section 7.3](#73-oversized-shoes-preserving-stair-physics) limits (sole flush with collider bottom) and verify on `Stairs15` and `Stairs20` that no shoe visually clips more than `2 cm` into a step.
-6. **Contact Squash (2 h):** Trigger `2`-beat squash on `P_Foot_L/R/Mesh` (with `-7.5 mm` Y offset so the sole stays on the floor!) on `LandL/R` and on `P_Hand_L/R/Mesh` on `GripL/R`.
-7. **Player Hues & Greyscale Value Check (2–3 h):** Apply the 4 player hues (`OwnerClientId % 4`) and verify contrast with Volume `Saturation = -100`.
-8. **Readability Test (4–6 h):** Run the protocol in [Section 12.2](#122-readability-test-phases-4a-and-7).
-
-### Phase 4A Done When:
-- [ ] The [Section 12.2](#122-readability-test-phases-4a-and-7) readability test passes (`≥ 90%` talker identification at `10 m`; `≥ 80%` grab/plant timing accuracy).
-- [ ] The maximum readable talking distance (`≥ 80%` accuracy) is logged in [Section 15](#15-decision-log) as the proximity-voice audible range cap.
-- [ ] The `Stairs15` / `Stairs20` shoe clipping check passes.
-
----
-
-## Phase 4B — Impacts, Get-Up Styles & Physical Cosmetics (60–85 h, 7–9 weeks)
-
-**Goal:** Build the three physical-comedy systems on placeholder meshes. *(Each block is self-contained and can be paused or reordered after its checklist.)*
-
-### Block 4B.1 — Dynamic Shader Dents (12–16 h)
-1. **`SG_Dent` Sub-Graph (4–6 h):** Build the 2-slot world-space displacement, rim bulge, and **world-normal tangent-basis normal reconstruction** ([Section 7.5.2](#2-shader-displacement--tangent-free-normal-reconstruction-sg_dent)). Test on a sphere in `LookDev` first.
-2. **Dent Slots & Repair in `PuppetPart` (2 h):** Add `AddDent`, beat-stepped application, `6 s` hold, and 3-beat stepped repair.
-3. **Host Detection & `DentRpc` (4–5 h):** Put `ImpactSensor` on all 13 physics bodies using `approachSpeed` (`Δv >= 2.5 m/s` dent, `Δv >= 5.0 m/s` 3-beat flatten, foot filter, hand-collider routing) and replicate via `DentRpc`.
-4. **Dent Verification (2–3 h):** Test on spheres and capsules (`Head`, limbs). Drop the character from `2 m`, shove into a wall, and walk the stair course.
-   - [ ] **Block 4B.1 Done when:** Dents are clearly visible from `5 m` on both Host and Client, repair in 3 beats after `6 s` (or on get-up), and normal stair walking triggers zero foot dents.
-
-### Block 4B.2 — Stop-Motion Get-Up Styles (30–40 h)
-1. **`StandAt`, `Stand`, `FootPlacement.PlantAt`, `NetworkPlayer` Hook & Get-Up Input (5–7 h):**
-   - Implement `GetUp` in `CharacterInput` and `LocalPlayerInput` (`Space` / `ButtonSouth`).
-   - Implement `PlantAt`, `PlantUnderPhysicalAnkle`, `StandAt` (with `Physics.OverlapCapsule` check), and `Stand` on `PlayerController` ([Section 7.6](#76-getting-up-recovery-styles)).
-   - Subscribe `playerController.RecoverStand += OnCharacterReset` in `NetworkPlayer.cs` so `isFallen` clears on all styles!
-2. **`RecoveryController` & Styles C, A, and B (18–25 h):**
-   - Build `RecoveryController` (`minDownSeconds = 1.5 s`, `autoRecoverSeconds = 8.0 s`, `IsHeld()` check and mid-recovery cancel on grab or `CharacterReset`, `Puppet.BoostChatter(3f, 4)`, dent repair, and cosmetic put-back).
-   - Build **Style C (Jump Cut)**, **Style A (Invisible Hand — remember `maximumForce = float.MaxValue` and `autoConfigureConnectedAnchor = false`!)**, and **Style B (Clay Re-Sculpt)**.
-3. **Recovery Playtest (4–6 h):** Run [Section 12.3](#123-recovery-playtest-phase-4b) and record the winning style (or context fallback rule) in [Section 15](#15-decision-log).
-   - [ ] **Block 4B.2 Done when:** All three styles switch live via `F9`, never explode on stairs/walls, cancel cleanly when grabbed or reset (`R`), clear `NetworkPlayer.IsFallen` on both Host and Client, and the playtest winner is logged in Section 15.
-
-### Block 4B.3 — Physical Detachable Cosmetics (18–25 h)
-1. **Data & Attached Visuals (5–7 h):** Build `CosmeticItem`, `CosmeticCatalogue`, `worn` list, `detachedSlots` `NetworkVariable<byte>`, and attach placeholder hat and scarf under `P_Head` / `P_Torso`.
-2. **Calibration, Detach Logic & `loosePrefab` (8–11 h):** Run the 5-minute drunk head calibration log ([Section 7.7](#77-physical-cosmetics)), implement host detach checks, build `loosePrefab` on Layer `PlayerBody` (`NetworkObject`, `Rigidbody`, `NetworkTransform`, `NetworkRigidbody`, `LooseCosmetic`, world-hold `PuppetPart`), and implement touch/recovery/timeout put-back.
-3. **Soft Scarf Chain (3–4 h):** Build the 3-segment local spring chain (simulated every frame, displayed on beats).
-   - [ ] **Block 4B.3 Done when:** A hard fall knocks the hat off on Host and Client, any player can grab and throw the loose hat, touching it or recovering puts it back on, and `BalanceSensor.Bodies.Length` remains `13`.
-
----
-
-## Phase 5 — Learn Blender & Graded Exercises (30–45 h, 4 weeks)
-
-**Goal:** Build confident Blender navigation and clay-sculpting fundamentals on small, graded practice pieces before touching game assets.
-
-### Step 5.1 — Core Courses (20–30 h)
-Work through these free courses in order:
-1. **Grant Abbitt — *"Get Started With Blender"* (GameDev.tv, 8–12 h with practice)** *(or Blender Guru's Blender 5.0 Donut, modelling & sculpting parts only).*
-2. **CGBoost — *"Blender Sculpting for Beginners"* (8–10 h with practice):** Focus on Voxel Remesh (`Ctrl+R`) and symmetry.
-3. **Ryan King Art — *"Stylized Male Head"* (Parts 1 & 2, 4–6 h):** Blocking in facial forms.
-4. **Blender Manual — Sculpt Brushes (1 h):** Review `Clay`, `Clay Strips`, `Clay Thumb`, `Scrape`, and `Smooth`.
-
-### Step 5.2 — Five Graded Practice Exercises (`ArtSource/Practice/`, 8–12 h)
-1. **Viewport Muscle Memory (1 h):** Orbit, pan, zoom, frame selection (`Numpad .`), and switch Front (`Numpad 1`), Side (`Numpad 3`), and Top (`Numpad 7`) views 10 times without hesitation. *(Enable `Edit > Preferences > Input > Emulate Numpad` if using a tenkeyless keyboard.)*
-2. **`pebble.blend` (1 h):** Voxel-remeshed sphere flattened on one side with three asymmetric lumps.
-3. **`bean.blend` (1–2 h):** Bean form with a crisp `Clay Thumb` gouge. *(If this takes > 2 h with a mouse, get a $40–$70 Wacom One S / XP-Pen Deco tablet; works out of the box on Linux/Sway via `libinput`.)*
-4. **`forearm.blend` (2–3 h):** One forearm piece matching your Phase 2 maquette side photo within `3 mm` (maquette scale).
-5. **`head.blend` (3–5 h):** Head piece matching your Phase 2 maquette front and side photos within `3 mm` (maquette scale).
-
-### Phase 5 Done When:
-- [ ] All five practice `.blend` files are saved in `ArtSource/Practice/`.
-- [ ] `head.blend` matches the maquette front and side outlines within `3 mm` at maquette scale.
-
----
-
-## Phase 6 — Sculpt the 16 Body Parts (40–70 h, 6 weeks)
-
-**Goal:** Replace the primitive body meshes with sculpted, vertex-painted clay meshes (`SM_Puppet_<Part>.fbx`). *(Note: Using the [Section 6.2](#62-three-viable-pathways-to-create-the-3d-clay-parts-phase-6) Maquette Scan or Non-Destructive Modifier Stack fast-tracks can reduce this phase to **15–30 hours**.)*
-
-### Step 6.1 — File Conventions & Git LFS (1 h)
-- Track `*.blend` and `*.fbx` with Git LFS (`git lfs track "*.blend" "*.fbx"`).
-- Store all parts in one master file: `ArtSource/Puppet/Puppet.blend`.
-- Export each mesh to `Assets/DrunkCharacter/Art/Meshes/SM_Puppet_<Part>.fbx`.
-
-### Step 6.2 — Export `Guide.fbx` from Unity to Blender (2 h)
-1. In Blender: set `Scene Properties > Units` to `Metric`, `Unit Scale = 1.000`, `Length = Meters`.
-2. In Unity: install `com.unity.formats.fbx` via Package Manager.
-3. Place `Player.prefab` at `(0, 0, 0)` in an empty scene. Confirm all `P_<Part>` transforms sit at their standing body positions (from Phase 1 Step 1.6), select `Puppet`, and run `GameObject > Export To FBX…` (`Binary`, `Model(s) Only`, `World Absolute`) to `ArtSource/Guide/Guide.fbx`.
-4. Import `Guide.fbx` into `Puppet.blend`. Verify `Head` dimensions read `0.36 m` on X/Y/Z in the `N` panel.
-5. Select all guide objects, press `Alt+P > Clear and Keep Transformation`, move them to a `Guide` collection (`M`), and set `Viewport Display > Display As: Wire`.
-
-### Step 6.3 — First Round-Trip Verification (2–3 h)
-Before sculpting real parts, test the exact export/import pipeline on a throwaway copy of `Head`:
-1. Duplicate the `Head` guide (`Shift+D, Esc`), apply scale (`Ctrl+A > Scale`), and add a `5 cm` bump on the front (+Z) and left (-X).
-2. **Save Blender FBX Export Preset (`Unity Part`):**
-   - `Limit to: Selected Objects ✓`, `Object Types: Mesh`
-   - `Transform: Scale 1.00`, `Apply Scalings: FBX All`, `Forward: -Z Forward`, `Up: Y Up`, `Apply Unit ✓`, **`Apply Transform ✗`**
-   - `Geometry: Smoothing: Face`, `Apply Modifiers ✓`, `Vertex Colors: sRGB`, `Prioritize Active Color ✓`
-   - `Animation: Bake Animation ✗`
-3. **Save Unity FBX Model Import Preset:**
-   - `Model`: `Scale Factor = 1`, `Convert Units ✓`, `Bake Axis Conversion ✓`, `Import Cameras/Lights/BlendShapes ✗`, `Generate Colliders ✗`, `Normals: Import`, `Tangents: None` *(or `Import`; `SG_Clay` uses Object-space normals so tangents are not required!)*.
-   - `Rig`: `Animation Type = None` | `Animation`: `Import Animation ✗` | `Materials`: `Material Creation Mode = None`.
-4. Assign the imported mesh to `P_Head/Mesh`'s `MeshFilter`, set `P_Head/Mesh`'s `localScale` and `baseScale` to `(1, 1, 1)`, and set `_BaseScale` to `(1, 1, 1)`.
-- **Done when:** Both test bumps point the right way in Unity (`+Z` forward toward the nose, `-X` left) and the head size matches within `1 cm`.
-
-### Step 6.4 — Sculpt, Mirror, Paint & Decimate Each Part (35–60 h, or 12–25 h via Fast-Track)
-
-Work one part at a time in this order: `Head`, `Nose` *(or merge Nose into Head)*, `Torso`, `Pelvis`, `UpperArm_L`, `Forearm_L`, `Thigh_L`, `Shin_L`, then mirror the `_R` limbs.
-
-1. **Initialize Part Origin (15 min/part):**
-   - Duplicate the guide mesh (`Shift+D, Esc`), rename to `SM_Puppet_<Part>`, move to `Puppet` collection, and run **`Object > Apply > Scale` only** *(never apply Location or Rotation, so the pivot and local axes remain identical to the physics body!)*.
-2. **Sculpt or Modifier-Stack the Form (2–5 h/part, or 45 min via Modifier Stack / Scan):**
-   - **Joint Overlap Rule:** End every limb at a joint in a **rounded ball centred on the joint pivot** with a radius equal to the limb's radius (`4.5–5 cm` on arms, `7–9 cm` on legs) so joints never open gaps when bent.
-   - **Clothing Cuffs & Collars:** Where sleeves, trousers, or collars end, sculpt an overlapping clay lip (or separate sub-mesh joined before export) so the transition has physical clay thickness and doesn't rely on low-poly vertex-color borders.
-   - If using Voxel Remesh (`Ctrl+R`), block in at `0.005 m` and detail at `0.002 m` with `Preserve Volume ✓` and `Preserve Color Attributes ✓`.
-3. **Mirror Left Limbs to Right Limbs (15 min/limb):**
-   > [!WARNING]
-   > **`UpperArm_L` vs. `UpperArm_R` Rotation Trap:** In `Player.prefab`, `UpperArm_L` has a `+90° Y` rotation while `UpperArm_R` has a `-90° Y` rotation (all other limbs have `0°` identity rotation). Always transfer the mirrored mesh data into a duplicate of the **right guide object** so `SM_Puppet_UpperArm_R` inherits `UpperArm_R`'s exact `-90° Y` local axes!
-   1. Snap 3D Cursor to World Origin (`Shift+C`) and set Pivot Point to `3D Cursor`.
-   2. Duplicate the finished `_L` high-poly sculpt and run `Object > Mirror > X Global`.
-   3. Duplicate the `_R` guide object, enter Edit Mode, delete all its vertices (`A, X > Vertices`), return to Object Mode, select the mirrored sculpt first, `Shift`-click the emptied `_R` guide second, and press `Ctrl+J` (Join).
-   4. Rename to `SM_Puppet_<Part>_R`, run `Object > Apply > Scale`, and verify `Overlays > Face Orientation` is **blue** (if red, `Edit Mode > A > Shift+N` to recalculate normals outside).
-4. **Vertex Colour Painting (30–60 min/part, before Decimate):**
-   - Create a Vertex `Byte Color` attribute named `Col` (`Object Data Properties > Color Attributes`).
-   - In Sculpt Mode (`Paint Hard` / `Paint Soft` / `Blur`), paint value variation in `R` (`0.5` neutral) and crevice grime in `G`.
-5. **Save `_HP` Backup & Decimate to Budget (20 min/part):**
-   - Duplicate the painted high-poly mesh, rename to `SM_Puppet_<Part>_HP`, and hide it (`H`) inside a `HighPoly_Backup` collection (kept for edits and optional Phase 10).
-   - Add a `Decimate (Collapse)` modifier to `SM_Puppet_<Part>`, dial the ratio down to the [Section 8.5](#85-performance--triangle-budget) triangle budget, apply the modifier, and enable `Object > Shade Smooth`.
-6. **Export & Verify in Play Mode (15 min/part):**
-   - Export with the `Unity Part` FBX preset, assign to `P_<Part>/Mesh`, set `Mesh.localScale`, `baseScale`, and `_BaseScale` to `(1, 1, 1)`, and verify in Play Mode before starting the next part.
-
-### Phase 6 Done When:
-- [ ] All body parts (except hands, shoes, and face pieces) use sculpted clay meshes in `Player.prefab`.
-- [ ] Total triangle count across the body parts is within the [Section 8.5](#85-performance--triangle-budget) budget.
-- [ ] All `_HP` high-poly backups are preserved in `Puppet.blend`.
-
----
-
-## Phase 7 — Sculpt Face Pieces, Hands, Shoes & Cosmetics (24–36 h, 3–4 weeks)
-
-**Goal:** Sculpt the expressive replacement pieces and swap out every remaining placeholder mesh.
-
-1. **Eyes, Pupils & 3 Eyelid Poses (4–6 h):** Sculpt `SM_Puppet_Eye`, `SM_Puppet_Pupil`, and `SM_Puppet_Lid_{Open,Half,Closed}` (pivots at eye centre) at [Section 7.1](#71-face--voice-driven-mouth) sizes.
-2. **Five Replacement Mouths (5–7 h):** Sculpt `SM_Puppet_Mouth_{Closed,Mid,Wide,Grimace,Shock}` on a shared origin at the mouth centre.
-   - **Sculpting Tip:** Give each mouth piece a slightly raised, thumb-pressed outer clay lip/muzzle rim (`3–4 mm` thick) that sits snugly against the front of the head sphere so the mesh swap reads like an authentic Aardman replacement piece rather than a clipping boolean cut. Paint the interior cavity with `G = 1` (dark grime/interior).
-3. **Three Hand Poses (5–8 h):** Sculpt `SM_Puppet_Hand_{Relaxed,Reach,Grip}_L` at `20 cm` width (origin at hand sphere centre), then mirror to `_R` (Step 6.4.3).
-4. **Shoes (3–5 h):** Sculpt `SM_Puppet_Foot_L` within the [Section 7.3](#73-oversized-shoes-preserving-stair-physics) box limits (sole flat at `y = -0.05 m`, `2 cm` upward toe curl), then mirror to `SM_Puppet_Foot_R`.
-5. **Cosmetics & Re-Sculpt Lump (4–6 h):** Sculpt at least one detachable hat, one face item (glasses/moustache), the neck scarf, one backpack, and (if Style B was chosen) `SM_Puppet_Lump`.
-6. **Swap In & Re-Verify Readability (2–4 h):** Replace all placeholders in `Player.prefab`, re-run the `Stairs15`/`Stairs20` shoe check, and re-run the [Section 12.2](#122-readability-test-phases-4a-and-7) readability test.
-
-### Phase 7 Done When:
-- [ ] Zero primitive placeholders remain on the character or cosmetics.
-- [ ] The [Section 12.2](#122-readability-test-phases-4a-and-7) readability test and [Section 7.3](#73-oversized-shoes-preserving-stair-physics) stair check pass with the final sculpted meshes.
-
----
-
-## Phase 8 — Assemble, Fix Poses & Match Style Frame (12–20 h, 2 weeks)
-
-1. **Five Worst-Case Pose Inspection (3–5 h):** Pause Play Mode (`Ctrl+Shift+P`) in five extreme poses: **(1) sprawled fall, (2) deep stumble, (3) overhead/forward grab, (4) carrying another player, and (5) climbing `Stairs20`**. Fix any visible joint gap by adjusting the `_HP` joint ball in Blender, re-decimating, and re-exporting (never by shifting object origins).
-2. **Final Dial Tuning (3–5 h):** Fine-tune all [Section 13](#13-master-dials-reference-table) dials with the complete character and log any updates in [Section 15](#15-decision-log).
-3. **Style Frame Overlay Check (2–3 h):** In `LookDev.unity`, place a Physical Camera (`26 mm` focal length) at `9.25 ×` the phone distance from `StyleFrame.txt` and overlay a screenshot at `50%` opacity over `ArtSource/StyleFrame.jpg`. Adjust lighting/material dials until silhouette, joint positions, and warmth match.
-4. **Full Character Turntable (1 h):** Record an 8-second `360°` turntable movie in `LookDev.unity`.
-
-### Phase 8 Done When:
-- [ ] None of the 5 extreme poses show a gap between body parts.
-- [ ] The `50%` opacity overlay matches `ArtSource/StyleFrame.jpg` in silhouette and lighting warmth.
-
----
-
-## Phase 9 — World Set Lighting, Camera & Comfort Menu (18–26 h, 2 weeks)
-
-1. **Anti-Aliasing Setup (30 min):** Set [`Assets/Settings/PC_RPAsset.asset`](file:///home/sam/Repos/personal/PhysicalWalkingPrototype/Assets/Settings/PC_RPAsset.asset) `Anti Aliasing (MSAA)` to **`4x`** (`m_MSAA: 4`) and keep `Main Camera` anti-aliasing at `None` or `SMAA` (never TAA/STP).
-2. **`TestScene` Volume Profile & Flicker Driver (3–4 h):** Create `Assets/Settings/TestSceneProfile.asset` (assign to `TestScene`'s Global Volume so `SampleSceneProfile.asset` is untouched), configure `Film Grain` (`Thin1, 0.15`), optional Tabletop `Depth of Field` (`Bokeh, 50 mm, f/2.8` with focus distance tracking `CameraTarget`), and beat-stepped `Post Exposure` flicker (`±0.0144 EV`, hard-clamped to `±0.0426 EV` via `volume.profile`).
-3. **Stage-Set Lighting & Environment Materials in `TestScene` (4–6 h):** Light the course with `3200 K` spot lamps (`Range <= 15 m`) and 2–3 emissive practical lamps, and apply matte hand-crafted materials to floors, walls, and stairs.
-4. **Player Comfort Settings Menu & Photosensitivity Notice (4–6 h):** Build the UI menu for all [Section 9](#9-comfort-accessibility-and-photosensitivity) settings (persisted in `PlayerPrefs`) and display a one-time photosensitivity notice before enabling flicker or boil.
-5. **EA IRIS Photosensitivity Flash Verification (1–2 h):** Record 2 minutes of 1080p 60 fps footage with maximum flicker (`±3%`) and boil active, and run it through **EA IRIS** on Linux.
-
-### Phase 9 Done When:
-- [ ] EA IRIS reports zero photosensitive flash or spatial pattern failures.
-- [ ] All [Section 9](#9-comfort-accessibility-and-photosensitivity) settings persist and work in a standalone build.
-
----
-
-## Phase 10 (Optional) — Continuous Skinned Body (60–100 h)
-
-*Pursue this only as a separate follow-on project if segmented seams bother you after Phase 9.*
-
-1. **Fuse & Retopologise:** Duplicate the `_HP` body parts in Blender, `Ctrl+J` join them, `Voxel Remesh` at `0.003 m` to fuse the joints, retopologise to `15,000–25,000` quads (`QuadriFlow` + manual loop cleanup around shoulders/hips/knees), mark UV seams, unwrap (`U > Unwrap`), and bake `Normal` (`T_Puppet_N`) and `Color Attribute` (`T_Puppet_VC`) at `2048 × 2048` in Cycles.
-2. **Flat 13-Bone Armature:** Create 13 unparented bones matching the 13 physics body names and pivots, weight paint (testing the 5 Phase 8 extreme poses), and export with `Animation Type = Generic`.
-3. **Unity Skinned Driver:** Drive the 13 bones in `LateUpdate` on beats (position and rotation only, never copying physics non-uniform scale), enable `SkinnedMeshRenderer.updateWhenOffscreen = true`, and switch `SG_Clay`'s fingerprint mapping from Triplanar to `UV0` (with `Fragment Normal Space = Tangent` and `Calculate Mikktspace` enabled now that `UV0` exists).
-
----
-
-## 12. Playtest & Verification Protocols
-
-### 12.1 Motion Playtest (Phase 1 Gate)
-
-- **Participants:** 3–5 players unfamiliar with the project (including at least 1 player prone to motion sickness).
-- **Four Blind Variants (Keys `1–4`, Latin-Square Order, 4 min each at default `drunkAmount`):**
-  1. `Smooth` (holds off)
-  2. `12 bps World Hold` (`rootSmooth = false`)
-  3. `12 bps Root-Smooth` (`rootSmooth = true`)
-  4. `8 bps Root-Smooth` (`rootSmooth = true`)
-- **Course:** Walk `TerrainCourse` start-to-end and back, then climb `Stairs15`.
-- **Recorded Metrics (`PlaytestLogger.cs`) & Post-Round Questions:**
-  - Metrics: `falls / min`, `recovered ÷ started stumbles`, `Stairs15 completion time`, `gripped ÷ grab attempts`.
-  - Questions: *"Did anything feel laggy or broken?"* (before mentioning stop motion) + 16-item Simulator Sickness Questionnaire (SSQ).
-- **Pass Criteria for a Stepped Variant:**
-  1. Mean `falls / min` and `stumble recovery rate` are each within `±10%` of `Smooth`.
-  2. At least `3 of 5` players describe the motion as an intentional style rather than lag.
-  3. No player's SSQ total score increases by more than `20 points` over their `Smooth` baseline.
-
-### 12.2 Readability Test (Phases 4A and 7)
-
-- **Viewers:** 5 viewers unfamiliar with the project watching 1080p Unity Recorder clips.
-- **Clips:**
-  - **Talking (18 clips):** 3 characters standing side-by-side at `5 m`, `10 m`, and `15 m` (6 clips per distance, 10 s each, random speaker driven by `DebugVoice`). Viewer answers *"Who is talking?"* within `3 s`.
-  - **Contact (6 clips):** 1 character walking, grabbing, and releasing a cube at `10 m`. Viewer presses a key on each foot touchdown and hand grab.
-- **Pass Criteria:**
-  - `≥ 90%` correct speaker identification at `10 m`.
-  - `≥ 80%` of foot plants and hand grabs marked within `±0.25 s` of the logged event.
-  - Record the furthest distance with `≥ 80%` speaker accuracy in [Section 15](#15-decision-log) as the proximity-voice audible range limit.
-
-### 12.3 Recovery Playtest (Phase 4B)
-
-- **Participants:** 3–5 players (including a 2-player MPPM session with Client on `Mobile4G`).
-- **Protocol:** 5 minutes per recovery style (**Style C Jump Cut**, **Style A Invisible Hand**, **Style B Re-Sculpt**) in Latin-square order on `TerrainCourse` at `drunkAmount = 1.0`.
-- **Selection Rule:** Pick the style with the highest delight score (`1–5`) whose median `RecoverStart → RecoverStand` duration is `< 2.0 s` and which zero players report as getting in their way (or combine Style A with automatic fallback to Style C on timeout).
-
----
-
-## 13. Master Dials Reference Table
-
-| Dial | Default | Tuning Range | Notes & Where Used |
-|---|---|---|---|
-| `beatsPerSecond` | `12` | `8–24` | Base stop-motion clock rate; re-judged in Phase 3 Step 3.4 |
-| `rootSmooth` | *Per Phase 1 playtest* | `true / false` | Pelvis smooth with camera while limbs step relative to pelvis |
-| `extraHoldBeats` | `1` | `0–2` | Extra hold intervals added after a `KeyPose` beat |
-| `minBeatInterval` | `1/24 s` (`0.0417 s`) | Fixed | Prevents rapid key poses from forcing a beat every frame |
-| `timingVariation` | `0.0` | `0.0–0.05` | Random interval jitter; keep near `0` to preserve comedic rhythm |
-| `chatterDegrees` | `0.75°` | `0°–2.0°` | Per-beat random rotation error on moved parts |
-| `chatterMetres` | `4 mm` (`0.004 m`) | `0–8 mm` | Per-beat random offset on moved parts (`0 mm` on `P_Hand_L/R`) |
-| `idleAmplitude` | `0.5°` | `0°–2.0°` | Moving-hold breathing pitch on `P_Torso` & `P_Head` at `0.25 Hz` |
-| `squashBeats` | `2 beats` | `1–3 beats` | Scale `(1.08, 0.85, 1.08)` on `Mesh` child (`-7.5 mm` Y shift on feet) |
-| `_BoilStrength` | `0.3` | `0.0–1.0` | Multiplied by per-part `_BoilMotion` (`metresMoved / 0.05 m`) |
-| `_DisplacementStrength` | `5 mm` (`0.005 m`) | `0–15 mm` | Boil vertex displacement along normal (`0` on Unity `Cube` primitives) |
-| `_PrintNormalStrength` | `0.5` | `0.0–2.0` | Triplanar fingerprint normal strength; fades `3 m → 8 m` |
-| `_Smoothness` (Base) | `0.18` | `0.05–0.40` | Matte waxy clay base smoothness |
-| `_CoatMask` / `_CoatSmoothness` | `0.35` / `0.65` | `0–0.6` / `0.4–0.85` | Oily fingerprint Clear Coat layer on `SG_Clay` |
-| Mouth envelope `attack / release` | `0.03 s / 0.12 s` | `0.01–0.1 / 0.05–0.3 s` | `MouthDriver` voice follower smoothing |
-| Mouth thresholds (`Mid / Wide`) | `0.15 / 0.55` | — | Minimum hold `1/12 s` (`83 ms`) to prevent flutter |
-| Pupil yaw lead | `0.2 s` (clamped `±25°`) | `0.0–0.4 s` | `headYawRate * 0.2f` on beats |
-| Blink interval & duration | `2–6 s`, `5 beats` | — | `Half → Closed → Closed → Half → Open`; rests at `Half` if `DrunkAmount >= 0.6` |
-| Dent threshold & depth | `Δv >= 2.5 m/s` (`1–6 cm`) | `1.5–4.0 m/s` | Linearly `1 cm` at `2.5 m/s` to `6 cm` at `7.0 m/s`; radius `2.5 × depth` (`>= 6 cm`) |
-| Dent hold & repair | `6.0 s`, `3 beats` | `2–15 s` | Or until `RecoverStand`; steps down `2/3 → 1/3 → 0` |
-| Whole-part flatten | `Δv >= 5.0 m/s` (`3 beats`) | `3–8 m/s` | Scales `Mesh` child `(1.15, 0.75, 1.15)` along impact normal |
-| Get-up `minDown / autoRecover` | `1.5 s / 8.0 s` | `0.5–4 s / 4–20 s` | Cancelled if `IsHeld()` is true or `CharacterReset` fires |
-| Style A lift height & timeout | `0.3 m` foot clearance, `3.0 s` | `0.1–0.6 m`, `2.5–5 s` | Falls back to Style C (`StandAt`) on timeout |
-| Style A linear / angular drives | `4000 / 1000`, `800 / 80` | — | **Must set `maximumForce = float.MaxValue` in C#** |
-| Hat detach thresholds | `12 rad/s`, `60 m/s²`, `Δv 3 m/s`, `110° (0.2 s)` | Calibrated in Phase 4B | Re-calibrate to `1.5×` peak drunk walking head motion |
-| Loose cosmetic grace & timeout | `1.0 s` grace, `60 s` timeout | `15–180 s` | Despawns and returns to owner on touch, `RecoverStand`, or timeout |
-| Scarf spring / damping | `60 / 6` | `20–150 / 2–15` | Simulated every frame locally, sampled onto mesh on beats |
-| Exposure flicker | `Off` (`±1%` / `±0.0144 EV` when On) | `0–±3%` (`±0.0426 EV`) | Hard-clamped in code |
-| Film grain | `0.15` (`Thin1`, response `0.8`) | `0.0–0.4` | On `TestSceneProfile.asset` |
-
----
-
-## 14. Learning & Tool Resources
-
-| Resource | Cost | Platform / Notes | Used In |
-|---|---|---|---|
-| [Grant Abbitt — *Get Started With Blender*](https://gamedev.tv/courses/get-started-blender) | Free | Web video course (8–12 h with practice) | Phase 5 |
-| [Blender Guru — *Blender 5.0 Donut Tutorial*](https://www.blenderguru.com/posts/blender-donut-v5-tutorial) | Free | Fallback beginner course (modelling & sculpting sections) | Phase 5 |
-| [CGBoost — *Blender Sculpting for Beginners*](https://www.cgboost.com/courses/blender-sculpting-for-beginners) | Free | 23 lessons (~3.5 h video; covers Voxel Remesh) | Phase 5 |
-| [Ryan King Art — *Stylized Male Head*](https://bazaar.blendernation.com/?p=15686) | Free | 2-part head sculpting tutorial | Phase 5 |
-| [Unity Learn — *Get Started with Shader Graph*](https://learn.unity.com/tutorial/get-started-with-shader-graph) | Free | Beginner Shader Graph walkthrough | Phase 3 |
-| **Blender Compositor / Cycles Bake / DeepBump** | Free | Native Linux tools for fingerprint normal maps (replaces Windows Materialize) | Phase 3 |
-| **Meshroom / KIRI Engine / Polycam** | Free | Optional photogrammetry scan of Phase 2 maquette (Pathway 2 fast-track) | Phase 6 |
-| [EA IRIS Photosensitivity Analyser](https://github.com/electronicarts/IRIS) | Free | Open-source C++ tool; builds natively on Linux via CMake + OpenCV | Phase 9 |
-
----
-
-# Part IV — Project Records
-
-## 15. Decision Log
-
-Add a dated row whenever an open question, style choice, or dial is settled.
-
-| Date | Decision | Rationale |
-|---|---|---|
-| 2026-10-28 | Physics and camera never step; only the rendered `Puppet` holds | *Spider-Verse* simulation rule; *Harold Halibut* and *South of Midnight* camera lessons |
-| 2026-10-28 | Segmented puppet (Option A) first; Skinned mesh (Option B) optional Phase 10 | Authentic to physical stop-motion puppets; maps 1-to-1 to the 16 ragdoll parts with zero rigging or UVs |
-| 2026-10-28 | Every stop-motion layer has an independent player setting; flicker capped at `±3%` (default Off) | Addresses player split and motion sickness in *South of Midnight*; satisfies WCAG 2.3.1 & Xbox 117 flash rules |
-| 2026-10-28 | Face, hands, and feet oversized and high-contrast; replacement mouths driven by voice level | Enables players to see who is speaking in proximity voice and read grabs/foot plants at `10–15 m` |
-| 2026-10-28 | Shoes never alter Foot box colliders; sole stays flush with collider bottom | Stair walking physics (`FootPlacement`) is tightly tuned around the existing `0.16 × 0.10 × 0.30 m` boxes |
-| 2026-10-28 | Maquette scale is `1 : 9.25` (`20 cm` maquette = `1.85 m` character); doc measurements are game metres | Single consistent scale factor across physical and digital assets |
-| 2026-10-28 | Vertex colour (`Col`) stores value streaks (`R`) and grime (`G`), not player hue | Allows 4 deterministic player hues (`OwnerClientId % 4`) to be applied via material properties |
-| 2026-10-28 | Global shader beat modulo `1200` | Divisible by `2, 3, 4, 5, 6, 8, 10, 12` for glitch-free texture variant cycling |
-| 2026-10-28 | Dynamic shader vertex dents (`SG_Dent`) repaired over 3 beats | Dents appear at the exact collision contact point rather than fixed pre-sculpted locations |
-| 2026-10-28 | Compare get-up Styles C (Jump Cut), A (Invisible Hand), and B (Re-Sculpt) in Phase 4B | Getting up is new gameplay; playtest determines which style feels best without obstructing play |
-| 2026-10-28 | Loose detached cosmetics spawn at scene root on Layer `PlayerBody`, never under `Player` | Any `Rigidbody` under `Player` would corrupt `BalanceSensor.Bodies` (`13`) and break `NetworkPose` |
-| 2026-10-29 | Pose-Root (`P_<Part>` at scale `1`) + `Mesh` child hierarchy; `P_Nose` under `P_Head`; `P_Hand` follows `P_Forearm` chatter | Prevents non-uniform squash skew on face/cosmetics, prevents `2.78×` scale jump between Phase 4A and Phase 6, and prevents nose/wrist separation during chatter and breathing |
-| 2026-10-29 | `SG_Clay` uses `URP Lit` + `Clear Coat` + `Fragment Normal Space = Object` + world-normal basis in `SG_Dent` | Gives Rowbotham's two-layer oily-over-matte clay reflectance in Forward+ while avoiding `NaN` tangent crashes on UV-less Voxel Remeshed sculpts and avoiding broken `Custom Lighting` sample subgraphs |
-
----
-
-## 16. Risks, Mitigations & Verified Engine Facts
-
-### Key Risks & Mitigations
-
-| Risk | Mitigation Built Into This Plan |
+| C. Jump cut (baseline) | The fallen pose holds 3 beats, then pops upright with 4 beats of heavy chatter. | The host calls `StandAt` 3 beats after `RecoverStart`. | 2–3 h |
+| A. Invisible hand | Lifted by the upper back, dangles, turns upright, is set down, wobbles free. Variant: a giant clay hand above. | The host adds a `ConfigurableJoint` from the Torso to the world. Raise `connectedAnchor` over 0.8 s, hold 0.4 s, lower at 0.6 m/s until both soles are within 2 cm of the ground, then call `Stand()` and destroy the joint. After 3 s, give up and call `StandAt`. | 8–12 h |
+| B. Re-sculpt | Squashes into a ball of clay over 4 beats, then re-forms standing over 6. | Visual only, on each machine: the parts move and shrink into a lump at the pelvis. The host calls `StandAt` after 4 beats; the parts grow back out over 6. | 6–10 h |
+| D. Scramble up | Rolls onto its knees and pushes itself up. | A multi-stage controller. Skip it unless A, B and C all fail. | 20+ h |
+
+**Style A's joint:** X, Y and Z drives with `positionSpring` 4000 and `positionDamper` 1000; Rotation Drive
+Mode Slerp with spring 800 and damper 80. Two traps:
+
+1. A `JointDrive` made in code has `maximumForce` 0, which applies no force. Set `maximumForce =
+   float.MaxValue`.
+2. Set `autoConfigureConnectedAnchor = false` before setting `anchor` to (0, 0.5, 0), the top of the Torso box
+   in its local space. With no connected body, `connectedAnchor` is a world position; move it each
+   `FixedUpdate`.
+
+### 8.3 Cosmetics
+
+Slots: Head, Face, Neck, Back, Hands/Feet. Head and Face items (hats, glasses, moustaches) can be knocked off.
+They become real networked props that anyone can grab and throw.
+
+- **Worn.** A child of `P_Head` or `P_Torso`, with no collider and no Rigidbody. Hidden while its bit is set in
+  `NetworkVariable<byte> detachedSlots` on `NetworkPlayer`.
+- **When it comes off (host).** First, log the Head's peak angular speed and peak 3-tick acceleration,
+  `(v_now − v_3_ticks_ago) / 0.03 s`, over 5 minutes of drunk walking (`drunkAmount` 1) without falling. Set
+  each threshold to 1.5 times its peak. Until then: angular speed above 12 rad/s, acceleration above 60 m/s²,
+  a head impact of 3 m/s or more, upside down past 110° for 0.2 s, or a grabbed head pulled faster than 3 m/s.
+- **The loose item (`loosePrefab`).** The host spawns it at the scene root, never under `Player`, where
+  `BalanceSensor` would count its Rigidbody. Put it on the `PlayerBody` layer: `Ground` ignores that layer, so
+  nobody steps on a hat as if it were floor, and `HandGrab` can still grab it. Components: `NetworkObject`, a
+  0.2–0.5 kg Rigidbody, a convex collider, server-authoritative `NetworkTransform` and `NetworkRigidbody`,
+  `LooseCosmetic`, and a visual child with a world-hold `PuppetPart`. For 0.5 s it ignores collisions with its
+  owner; launch it at `head.GetPointVelocity(point) + Vector3.up * 1f`.
+- **Back on.** When the owner's Head or a hand touches it after 1 s, on `RecoverStand`, or after 60 s on the
+  ground, the host despawns it and clears the bit.
+- **Soft bits** (scarf ends, bobbles): a 3-segment spring chain (spring 60, damping 6), simulated every frame on
+  each machine and drawn only on beats.
+
+## 9. The clay material (`SG_Clay`)
+
+One Shader Graph for every part, replacement piece, cosmetic and clay prop.
+
+### 9.1 Light
+
+Real plasticine is a matte, slightly waxy base with an oily sheen where fingers pressed it (Rowbotham's
+report). URP Lit's Clear Coat gives that two-layer look.
+
+- **Graph Settings:** Universal, Material Lit, Clear Coat ✓ (adds the Coat Mask and Coat Smoothness inputs),
+  Fragment Normal Space Object. Object space needs no tangents, and sculpts have no UVs.
+- **Values:** Smoothness 0.18; Coat Mask = fingerprint mask × 0.35; Coat Smoothness 0.65.
+- **Shadow edge.** Lit's light-to-shadow edge is harder than real clay's. Soften it with the fill light and
+  ambient light, not in the shader: anything added through Emission ignores the scene's lights and shadows.
+- **Not the Custom Lighting sample.** Its Oren-Nayar model lights only from the main light, while look-dev and
+  the set use spot lights, and every sample graph uses the Unlit target, which has no clear coat.
+
+### 9.2 Colour
+
+The vertex colour attribute `Col` holds variation, not hue:
+
+| Channel | Meaning |
 |---|---|
-| **Stepped holds feel like framerate lag or cause motion sickness** | Key-pose beats (`RequestBeat`), `rootSmooth` mode, clay surface before final rate judgement, independent comfort toggles, and the Phase 1 blind playtest gate. |
-| **Input-to-visual latency (0–83 ms at 12 bps)** | `KeyPoseEvents` forces an immediate beat on foot touchdown, grab, stumble, impact, and reversal—removing hold latency at the exact moments players react to. |
-| **UV-less sculpted meshes produce `(0,0,0)` tangents and black `NaN` normals** | `SG_Clay` uses `Fragment Normal Space = Object`, `Triplanar` uses `Input/Output Space = Object`, and `SG_Dent` constructs its tangent basis directly from the World Normal `N_ws`. |
-| **Non-uniform squash/flatten skews rotated child eyes/hats or lifts feet off the floor** | Scale is applied only to the `P_<Part>/Mesh` leaf child while `P_<Part>` stays at `(1, 1, 1)`; foot squash shifts `Mesh.localPosition.y` down by `-7.5 mm` so soles stay planted. |
-| **Style A "Invisible Hand" lift snags on low geometry or leaves `isFallen` stuck true** | `3.0 s` timeout falls back to `StandAt` (Style C); `NetworkPlayer` subscribes to `RecoverStand` to clear `isFallen.Value`; `JointDrive.maximumForce` is explicitly set to `float.MaxValue`. |
-| **Sharp clothing-to-skin borders zigzag after `Decimate (Collapse)`** | Sculpt clothing cuffs, collars, and hems as overlapping clay geometry (or separate material slots) rather than relying on vertex colour `B` across `2 cm` decimated triangles. |
-| **Phase 6 manual sculpting takes too long for a beginner** | Section 6.2 provides two fast-track options: **Pathway 2 (Phone Photogrammetry of the Phase 2 Maquette)** and **Pathway 3 (Non-Destructive Blender Modifier Stack)**. |
+| R | Value streaks; 0.5 is neutral. |
+| G | Grime and dark mouth insides; 1 is darkest. |
+| B | Accent mask: 0 is the main colour, 1 the accent colour. |
 
-### Verified Project & Engine Facts (Checked 2026-10-29)
+- The hues (skin, and the player hue on clothing) are material properties.
+- **Clothing edges** (cuffs, collars, waistbands) are separate, overlapping clay, or a second material slot
+  (`M_Clay_Cloth`). Decimated vertices are 1–2 cm apart, so a painted edge would zigzag.
+- **Specks, lint and dust** come from a tiling triplanar mask, `T_Specks_M`.
+- Vertex colour is exported as sRGB. In the graph, pass Vertex Color through Colorspace Conversion (RGB to
+  Linear).
 
-- **Unity & Packages:** `Unity 6000.6.0f1`, `URP 17.6.0`, `Shader Graph 17.6.0`, `Netcode for GameObjects 2.13.3`.
-- **URP Asset (`Assets/Settings/PC_RPAsset.asset` & `PC_Renderer.asset`):** Uses `Forward+` (`m_RenderingMode: 2`), `SRP Batcher` enabled, `GPU Resident Drawer` (`Instanced Drawing`) enabled, `MSAA` currently `Off` (`m_MSAA: 1`), and `SSAO` enabled (`Source: DepthNormals`). Both `PC_RPAsset` and `TestScene` currently share `SampleSceneProfile.asset`.
-- **Enter Play Mode Options (`ProjectSettings/EditorSettings.asset`):** Enabled with `Disable Domain Reload` + `Disable Scene Reload` (`m_EnterPlayModeOptions: 3`).
-- **`Player.prefab` UpperArm Rotations:** `UpperArm_L` has local rotation `(0, 0.7071068, 0, 0.7071068)` (`+90° Y`) and `UpperArm_R` has `(0, -0.7071068, 0, 0.7071068)` (`-90° Y`), whereas all other 14 parts have `identity` rotation.
-- **Blender Environment:** `Blender 5.2.2 LTS` is installed locally; Sculpt Mode's brush shelf includes the `Paint` category (`Paint Hard`, `Paint Soft`, `Blur`) which paints directly into active `Byte Color` vertex attributes.
+### 9.3 Fingerprints
 
----
+- **Puppet scale.** Prints are sized as on the 20 cm maquette, so they appear 9.25 times larger on the
+  character. A 1.5 cm thumb smear becomes 14 cm, 26 px at 5 m. A texture of a 10 cm slab then covers 0.925 m,
+  so set the Triplanar Tile to 1.08.
+- **Triplanar node:** Type Normal, Input Space Object, Normal Output Space Object.
+- **Position input:** Position (Object) × `_BaseScale`. Don't use the Object node's Scale: it changes during a
+  squash and the prints would slide.
+- **Distance fade:** fade the print normal strength and the Coat Mask from full at 3 m to zero at 8 m. Keep
+  mipmaps on and Aniso Level at 4.
+- **Textures:** start with a stock print normal map (cgbookcase, as used by joebinns/clay). Making your own is
+  step 3.4.
 
-## 17. Review Record
+### 9.4 Boil
 
-| Version | Review Perspective | Key Improvements & Fixes |
+- **`_StopMotionBeat`:** a Float in the Blackboard with Exposed unticked and Scope Global. An exposed property
+  ignores `Shader.SetGlobalFloat`.
+- **Three variants** of the print and noise textures: `variant = (_StopMotionBeat + floor(_PartSeed × 3)) mod 3`.
+  Swap them; never scroll them.
+- **`_BoilMotion`,** per part: on each beat, `PuppetPart` sets it to `Mathf.Clamp01(metres moved since the last
+  beat / 0.05f)`. Only call `SetFloat` when it changes by more than 0.01.
+- Multiply the variant blend and a 5 mm displacement along the normal (from a 3D noise) by `_BoilMotion ×
+  _BoilStrength`. Parts that didn't move stay still.
+- Unity's Cube primitive (Pelvis, Torso, feet and nose until phase 6) has split normals that crack open when
+  displaced. Keep `_DisplacementStrength` at 0 on cubes.
+
+### 9.5 Triangle budget
+
+| Part | Triangles, at most |
+|---|---|
+| Head | 8,000 |
+| Torso | 4,000 |
+| Pelvis | 2,500 |
+| Each arm and leg segment (8) | 2,500 (20,000) |
+| Each hand pose on show (2) | 2,000 (4,000) |
+| Each shoe (2) | 1,500 (3,000) |
+| Nose and face pieces | 5,500 |
+| Worn cosmetics | 1,500 |
+| **Per player** | **about 48,500, in about 25 renderers** |
+
+## 10. Comfort settings
+
+Stepping and flicker at 12 Hz sit in the 3–30 Hz band most likely to cause motion sickness or photosensitive
+reactions. Every effect has its own setting: in the F9 debug window from phase 1, and in a settings menu from
+phase 9.
+
+| Setting | Options | Default |
 |---|---|---|
-| `0.1 → 0.2` | **Unity Programmer, Art Director, Stop-Motion Animator, 3D Teacher, Game Designer** | 13 bodies; `lossyScale`; no colliders on parts; `Puppet` sibling; `LateUpdate` copy; static reset; non-exposed global beat property; `LookDev` scene & style frame; `1 : 9.25` maquette; key-pose beats; motion-scaled 3-variant boil; `rootSmooth` vs world hold; blind playtest with SSQ. |
-| `0.2 → 0.3` | **Literal Follower (Phases 0–7) & Alan's Requirements** | Client replication via `PoseFrame` byte counters and `Snapped`; pixel sizes at `5/10/15 m`; voice-driven replacement mouth; exaggerated gloves & shoes with contact squash; dynamic shader dents; 4 get-up styles; physical detachable cosmetics; IRIS flash check. |
-| `0.3 → 0.4` | **Gameplay, Physics & Network Programmer** | Approach-speed impact measure (`Δv = |relativeVelocity · normal|`); foot dent filter; world-space dent math; `StandAt` with moved origin and `OverlapCapsule` check; `Stand` for Style A; `IsHeld()` carry protection; detach threshold calibration; `loosePrefab` on `PlayerBody` layer. |
-| `0.4 → 0.5` | **Readability Overhaul, Full Codebase Audit & Claymation Rendering Research** | **Readability:** Added Table of Contents, architectural comparison tables, GitHub callout alerts, structured math/code blocks, and sub-step headings.<br>**Codebase Fixes:** (1) Fixed UV-less `Calculate Mikktspace` zero-tangent crash by setting `SG_Clay` & `Triplanar` to `Object` normal space and constructing `SG_Dent`'s tangent basis from `N_ws`; (2) Split `P_<Part>` (scale `1` pose root) from `P_<Part>/Mesh` (scaled mesh child) so face/cosmetics don't jump `2.78×` in Phase 6 or shear during impact flatten, parented `P_Nose` to `P_Head`, locked `P_Hand` to `P_Forearm` chatter, shifted foot squash `-7.5 mm` Y to stay on the floor, and used `_BaseScale` so squash doesn't swim triplanar prints; (3) Copied edit-mode poses in Phase 1 Step 1.6 for `Guide.fbx` export and documented `UpperArm_L/R` `±90° Y` rotations for mirroring; (4) Added `JointDrive.maximumForce = float.MaxValue`, `NetworkPlayer.RecoverStand` hook to clear `isFallen`, per-foot terrain sampling in `PlantAt`/`Stand`, and `TorsoLean` pause while fallen; (5) Fixed client initial counter sync in `NetworkPose`, `Destroy(mat)` leak in `OnDestroy`, `SampleSceneProfile.asset` sharing, and `Time.timeScale` bench note.<br>**Research & Pathways:** Enabled URP `Lit` native `Clear Coat` + wrapped subsurface (replacing broken `Custom Lighting` sample), replaced Windows `Materialize` with native Linux Blender Compositor / Cycles bake, and added Phase 6 fast-track pathways (Phone Photogrammetry of the Phase 2 Maquette and Non-Destructive Blender Modifier Stack). |
+| Pose holds | Off (every frame) / Light (18 beats a second, no extra hold, no chatter) / Full | Full, unless the playtest says otherwise |
+| Beats per second | 8 / 12 / 18 / 24 (with Full) | 12 |
+| Root-smooth | On / Off | Set by the playtest |
+| Chatter | On / Off | On |
+| Boil | On / Off | On |
+| Flicker | Off / On (±1% luminance) | Off. Capped at ±3% in code; the flash threshold in WCAG 2.3.1 and Xbox guideline 117 is 10%. |
+| Film grain | On / Off | On (Thin1, 0.15) |
+| Tabletop focus | On / Off | Set in phase 3 |
+
+## 11. World, camera and post-processing
+
+- **No TAA or STP.** They blend frames and ghost every beat. In `PC_RPAsset`, set MSAA to 4× (it is off now), or
+  use SMAA on the Main Camera.
+- **No motion blur** in any volume profile.
+- **Separate volume profiles.** `PC_RPAsset`'s default profile and `TestScene`'s Global Volume both use
+  `SampleSceneProfile.asset`. Make `LookDevProfile` and `TestSceneProfile` rather than editing it.
+- **Light it like a set.** Spot lights 3–5 m from the play area with Range at most 15 m, so the far side falls
+  off by at least a stop. A 3200 K key light with soft shadows. Visible practical lamps.
+- **Props.** Grabbable props get a world-hold `PuppetPart` child on the shared clock, so a held prop and the
+  hand holding it step on the same frame.
+- **Primitives are coarse.** The head sphere has about 5 cm between vertices and the cubes have only their
+  corners. Dents and boil displacement look right only on sculpts.
 
 ---
+
+# Part III — Build plan
+
+## Phase 1 — Stop-motion prototype and playtest (30–40 h, 4 weeks)
+
+Branch: `feature/stop-motion-prototype`. Build the clock, puppet and key poses on the current primitives, then
+run a blind playtest.
+
+### 1.1 `StopMotionClock` (3–4 h)
+
+- Create `Assets/DrunkCharacter/Scripts/StopMotionClock.cs` as in 5.3. Put it on a new `StopMotionClock`
+  GameObject in `TestScene`.
+- Serialized fields, with the section 13 defaults: `holdsOn`, `beatsPerSecond`, `extraHoldBeats`,
+  `timingVariation`, `rootSmooth`, `chatterDegrees`, `chatterMetres`, `idleAmplitude`, `squashBeats`.
+
+**Done when** a log in `Beaten` shows 12 beats a second, and `RequestBeat(true)` from a test key gives an
+immediate beat followed by a two-interval hold (about 0.167 s).
+
+### 1.2 Host signals (4–6 h)
+
+- Add `Landed`, `Gripped` and `StumbleStarted` as in 5.5.
+- Create `ImpactSensor.cs`. Put it on Pelvis, Torso and Head for now; all 13 bodies get it in phase 4B.
+
+**Done when**, as host, each event logs once per occurrence: walk, grab a cube, get shoved, fall.
+
+### 1.3 `KeyPoseEvents` (3–4 h)
+
+- Create `KeyPoseEvents.cs` on `Player` as in 5.5: listen to the host signals, detect reversals, set
+  `HandFlags` and `CurrentExpression`, raise `Snapped` on `CharacterReset`, and call `RequestBeat(true)` on
+  every key pose.
+
+**Done when** the log shows each key pose with the right side, and `Reversal` when you strafe left, then right.
+
+### 1.4 Network fields (3–4 h)
+
+- Add the counters, `HandFlags` and `Expression` to `PoseFrame`. Fill them in `SendPose`; read them on clients
+  in `NetworkPose.Update` (5.5).
+
+**Done when**, in Multiplayer Play Mode, host and client log the same key poses for the same character, and a
+client that joins logs no burst.
+
+### 1.5 `Puppet` and `PuppetPart` (4–5 h)
+
+- Create `Puppet.cs` and `PuppetPart.cs` as in 5.2 and 5.4.
+
+### 1.6 Build the puppet in `Player.prefab` (2–3 h)
+
+Open `Player.prefab` in Prefab Mode.
+
+1. Add an empty child of `Player` named `Puppet`: position (0, 0, 0), rotation 0, scale 1. Add the `Puppet`
+   component.
+2. For each of the 13 bodies:
+   1. Add an empty child of `Puppet` named `P_<Body>`, scale 1, at the body's position and rotation. The puppet
+      then stands in place in edit mode, which the phase 6 export needs.
+   2. Add `PuppetPart` and set `source` to the body and `pelvis` to Pelvis.
+   3. Add an empty child named `Mesh_<Body>`: position 0, rotation 0, scale = the body's scale (section 4 table).
+      Copy the body's MeshFilter and MeshRenderer onto it, and set `mesh` and `baseScale` on the `PuppetPart`.
+3. **Nose:** under `P_Head`, add an empty `P_Nose` at local position (0, −0.018, 0.198), rotation 0, scale 1.
+   Under it add `Mesh_Nose` with scale (0.0648, 0.0648, 0.108) and the Nose's MeshFilter and MeshRenderer.
+4. **Hands:** under each `P_Forearm_L/R`, add an empty `P_Hand_L/R` at local position (0, −0.18, 0), scale 1.
+   Under it add `Mesh_Hand_L/R` with scale (0.11, 0.11, 0.11) and the hand's MeshFilter and MeshRenderer.
+5. Remove the MeshFilter and MeshRenderer from the 16 originals: the 13 bodies, Nose and both hands. Leave their
+   colliders and Rigidbodies alone.
+
+**Done when:**
+- [ ] in Prefab Mode, every puppet mesh sits exactly on its collider;
+- [ ] in play mode with holds off, the character looks the same as on `main`;
+- [ ] `BalanceSensor.Bodies.Length` is still 13, and nothing under `Puppet` has a Collider or Rigidbody.
+
+### 1.7 Debug window (2–3 h)
+
+- An IMGUI window, toggled with F9, with every section 10 setting live.
+- Keys 1–4 switch the four playtest variants (12.1). The screen shows only "Variant A–D", never the settings.
+
+### 1.8 Latency check (2 h)
+
+- Run MPPM Player 2 as a client on `NetworkSession`'s Mobile4G preset (100 ms ±20 ms, 4% loss; F10 cycles the
+  presets).
+
+**Done when**, stepping frame by frame (Ctrl+Alt+P) while grabbing a prop and then another player, the hand and
+the held body change pose on the same frame on host and client.
+
+### 1.9 Logger and playtest (8–12 h)
+
+- Create `Assets/Sandbox/Debug/PlaytestLogger.cs`. It logs `Fell`, `StumbleStarted`, recovered stumbles (a
+  stumble whose fall meter drains to 0 without `Fell`), grab attempts, `Gripped`, and the Stairs15 start and
+  finish times to `Logs/playtest_<player>_<variant>.csv`.
+- Run the playtest in 12.1.
+
+### Phase 1 done when
+
+- [ ] all four variants switch live in play mode;
+- [ ] `SwayBench.Run` on seeds 1–5 gives fall times within ±1 s of the same runs on `main`, so the physics is
+      unchanged;
+- [ ] the playtest result, the default rate and the root-smooth default are logged;
+- [ ] the gate is passed, or holds are set to Off and that is logged.
+
+## Phase 2 — Maquette and style frame (12–18 h, 2 weeks)
+
+Settle the proportions, surface and lighting in real clay before any shader or Blender work.
+
+### 2.1 References (2 h)
+
+- Collect 30–50 images and clips in `ArtSource/References/{films,games,puppets,drunk_poses}`, at least 5 per
+  folder. Cover heavy-print clay (Morph, Adam Elliot) through smooth clay (Aardman features, Harold Halibut).
+
+### 2.2 Materials (1 h; order early)
+
+- **Clay:** 1 kg Chavant NSP Medium (sulphur-free, holds detail) for the maquette, and 450 g Newplast or Van
+  Aken Plastalina to get the feel of animation plasticine.
+- **Armature and tools:** 1.5 mm and 2 mm aluminium armature wire, 5 m each; loop and ball-stylus tools; flat
+  and cone silicone shapers; petroleum jelly; a microfibre cloth.
+
+### 2.3 Print the character (1 h)
+
+- In the Scene view, take orthographic front and side screenshots of the standing character. Print them so
+  crown to sole measures exactly 20.0 cm.
+
+### 2.4 Armature and maquette (6–8 h)
+
+1. Mark the 12 joint centres on the print. Bend 2 mm wire for the spine and legs and 1.5 mm wire for the arms,
+   within 2 mm of the marks.
+2. Sculpt the maquette in separate, overlapping pieces (option A) at these sizes:
+
+   | Feature | Game | Maquette |
+   |---|---|---|
+   | Head | 36 cm | 3.9 cm |
+   | Eye whites | 8 cm | 9 mm |
+   | Wide mouth | 18 × 12 cm | 19 × 13 mm |
+   | Gloves | 20 cm across | 22 mm across |
+   | Shoes, at most (W × H × L) | 22 × 16 × 36 cm | 24 × 17 × 39 mm |
+
+3. Choose the clothing (for example a coat, sweater, scarf or baggy trousers). Log it.
+
+### 2.5 Style frame and photos (2–3 h)
+
+1. Build a small cardboard and fabric tabletop corner. Light the maquette with three desk lamps:
+   - **Key:** 45° front-left and above, a warm bulb of about 3000 K.
+   - **Fill:** opposite the key, at about half its brightness.
+   - **Rim:** behind and above, to catch the clay's edges.
+2. With the phone on a tripod at maquette chest height and manual exposure, shoot `ArtSource/StyleFrame.jpg`.
+   Write the camera distance and height in `ArtSource/StyleFrame.txt`.
+3. Shoot flat-lit front and side photos on plain paper with a ruler in frame: `ArtSource/Maquette/Front.jpg`
+   and `Side.jpg`.
+
+### Phase 2 done when
+
+- [ ] the maquette's joint centres are within 2 mm of the print;
+- [ ] `StyleFrame.jpg`, `StyleFrame.txt`, `Maquette/Front.jpg` and `Maquette/Side.jpg` exist;
+- [ ] the clothing is logged.
+
+## Phase 3 — Look-dev scene and clay material (22–32 h, 3 weeks)
+
+The goal: the primitive character already reads as photographed plasticine.
+
+### 3.1 Shader Graph basics (3–4 h)
+
+- Work through Unity Learn's "Get started with Shader Graph".
+
+### 3.2 Look-dev scene (2–3 h)
+
+1. Create `Assets/Settings/LookDevProfile.asset`: Tonemapping Neutral, no Motion Blur.
+2. Create `Assets/Sandbox/LookDev.unity` with that profile. Add:
+   - the `Player` prefab on a mid-grey floor (RGB 128, 128, 128);
+   - one Reflection Probe;
+   - three spot lights (key, fill, rim) matching `StyleFrame.jpg`;
+   - two cameras: gameplay at 5 m and close-up at 1.5 m.
+
+### 3.3 `SG_Clay` (8–12 h)
+
+Check each step in `LookDev` before the next.
+
+1. Create `SG_Clay` (Universal > Lit) with the Graph Settings in 9.1.
+2. **Base colour:** `_BaseColor × lerp(0.85, 1.15, R)` from the linear vertex colour, darkened toward a grime
+   colour by G. Add the speck mask.
+3. **Prints:** the Triplanar node set up as in 9.3, with the stock print normal map.
+4. **Sheen:** Smoothness 0.18; Coat Mask = print mask × 0.35; Coat Smoothness 0.65. Compare with the coat off
+   and log which you keep.
+5. **Fade:** prints and coat fade out from 3 m to 8 m.
+6. **Boil** (9.4): `_StopMotionBeat`, `_PartSeed`, `_BoilMotion` and three variants. `PuppetPart` sets
+   `_PartSeed` and `_BaseScale` in `Awake`, sets `_BoilMotion` on beats, and destroys its materials in
+   `OnDestroy`.
+7. **Boil displacement:** 5 mm × `_BoilMotion` along the normal, on spheres and capsules only. Keep it at 0 on
+   cubes.
+
+### 3.4 Your own prints, style sheet, rate and scale (6–9 h)
+
+1. **Your own three print variants** (optional now, or in phase 6). Pick one way:
+   - **Bake in Blender.** Add a plane and scale it to 0.1 m. Add a Multiresolution modifier and subdivide about
+     6 times. In Sculpt Mode, turn on Symmetry > Tiling for X and Y with the tile offset at 0.1 m, then press
+     thumb marks with Clay Thumb. In Render Properties (Cycles) > Bake, tick Bake from Multires, choose
+     Normals and bake to a 1024 × 1024 image. Repeat for three variants.
+   - **Photograph real prints.** Press prints across a flat 10 cm slab. With a tripod, manual exposure, and a
+     ruler and grey card in frame, take four shots from directly above, lit from north, east, south and west.
+     In Blender's Compositor, combine them: `Nx = east − west`, `Ny = north − south`,
+     `Nz = sqrt(max(0, 1 − Nx² − Ny²))`; normalise, then map −1…1 to 0…1. Make it tile in GIMP
+     (Filters > Map > Tile Seamless). A single raking-light photo bakes its light into the map, so use all four.
+2. Record an 8-second, 360° turntable of a clay sphere in `LookDev` with Unity Recorder.
+3. Write `Docs/stop-motion-style-sheet.md`: 6–8 palette swatches as hex, the smoothness and coat values, and the
+   mark sizes in game centimetres.
+4. With the clay on, compare 8, 12 and 18 beats a second. Compare tabletop focus (Bokeh, 50 mm, f/2.8) with deep
+   focus. Log both choices.
+
+### Phase 3 done when
+
+- [ ] a `LookDev` gameplay-camera screenshot sits next to `StyleFrame.jpg`;
+- [ ] 2 of 3 people who don't know the project, asked "What is this made of?", answer clay or plasticine
+      unprompted;
+- [ ] the lighting, rate and scale-look choices are logged.
+
+## Phase 4A — Readability (25–35 h, 3 weeks)
+
+Prove the character reads at 5–15 m with placeholders before sculpting anything.
+
+1. **Face (3–4 h).** Under `P_Head`, add collider-free placeholders at the sizes and values in 7.1 and 7.2:
+   eye whites, pupils, the three lids and the five mouths.
+2. **Voice (5–7 h).** `VoiceLevel`, `DebugVoice` (F8) and `MouthDriver` (7.2).
+3. **Eyes (3–4 h).** `EyeDriver` (7.1).
+4. **Gloves (3–4 h).** 20 cm high-contrast placeholder gloves on `Mesh_Hand_L/R`. `HandPoseDriver` swaps
+   Relaxed, Reach and Grip on beats from `HandFlags`.
+5. **Shoes (2–3 h).** Set each `Mesh_Foot_L/R` to the shoe size within 7.4: scale (0.22, 0.16, 0.36) at local
+   position (0, 0.03, 0), so the extra height goes up and the sole stays at the collider's. Set `baseScale` to
+   match. Walk Stairs15 and Stairs20: no shoe may clip more than 2 cm into a step.
+6. **Squash (2 h).** A 2-beat squash on the foot mesh on `LandL/R` and on the hand mesh on `GripL/R` (5.4).
+7. **Hues (2–3 h).** The four player hues and the greyscale check (7.5).
+8. **Readability test (4–6 h).** Run 12.2.
+
+### Phase 4A done when
+
+- [ ] the readability test passes;
+- [ ] the furthest distance with at least 80% talker accuracy is logged as the proximity-voice range;
+- [ ] the stair check passes.
+
+## Phase 4B — Dents, getting up, cosmetics (60–85 h, 7–9 weeks)
+
+Three independent blocks on placeholders. Each can be paused after its checklist.
+
+### 4B.1 Dents (12–16 h)
+
+1. **`SG_Dent` (4–6 h)** as in 8.1. Test it on a sphere in `LookDev` first.
+2. **Dents in `PuppetPart` (2 h).** `AddDent`, applying on beats, the 6 s hold and the 3-beat repair.
+3. **Detection and `DentRpc` (4–5 h).** `ImpactSensor` on all 13 bodies (8.1).
+4. **Check (2–3 h).** Drop the character from 2 m, shove it into a wall and walk the stairs. Judge dents on the
+   Head and limbs; the cube parts can't show them until phase 6 (section 11).
+
+**Done when:**
+- [ ] a dent is visible from 5 m, on host and client;
+- [ ] it repairs in 3 beats after 6 s, or when the character gets up;
+- [ ] walking the stairs makes no foot dents.
+
+### 4B.2 Getting up (30–40 h)
+
+1. **Foundations (5–7 h).** The GetUp input; `PlantAt`, `PlantUnderAnkle`, `StandAt` and `Stand`; the
+   `RecoverStand` hook in `NetworkPlayer` (8.2).
+2. **`RecoveryController` and the styles (18–25 h).** The triggers, `IsHeld()` and cancelling,
+   `BoostChatter`, dent repair and cosmetic return. Build style C, then A, then B. Add a style switch to the F9
+   window.
+3. **Playtest (4–6 h).** Run 12.3. Log the winner, or a fallback rule such as A with C on timeout.
+
+**Done when:**
+- [ ] all three styles switch live;
+- [ ] none explodes on stairs or against a wall: a blocked `StandAt` stays down and logs it;
+- [ ] being grabbed or pressing R cancels a recovery cleanly;
+- [ ] after every style, `NetworkPlayer.IsFallen` clears on host and client;
+- [ ] the winner is logged.
+
+### 4B.3 Cosmetics (18–25 h)
+
+1. **Data and worn items (5–7 h).** `CosmeticItem`, `CosmeticCatalogue`, a `worn` list and `detachedSlots`. A
+   placeholder hat under `P_Head` and a scarf under `P_Torso`.
+2. **Knocking off (8–11 h).** The calibration log, the host checks, `loosePrefab`, and putting it back by touch,
+   on getting up and on timeout (8.3).
+3. **Scarf chain (3–4 h).** The local spring chain, drawn on beats.
+
+**Done when:**
+- [ ] a hard fall knocks the hat off, on host and client;
+- [ ] any player can grab and throw it;
+- [ ] touching it or getting up puts it back on;
+- [ ] `BalanceSensor.Bodies` is still 13 while it lies loose.
+
+## Phase 5 — Learn Blender (30–45 h, 4 weeks)
+
+Tutorial projects are practice: copy them exactly. Every character choice comes from your maquette.
+
+### 5.1 Courses (20–30 h), in order
+
+1. Grant Abbitt, "Get Started With Blender" (free on GameDev.tv; 8–12 h with practice). Fallback: the modelling
+   and sculpting parts of Blender Guru's Blender 5.0 donut.
+2. CGBoost, "Blender Sculpting for Beginners" (free; 8–10 h). Focus on voxel remesh and symmetry.
+3. Ryan King Art, "Stylized Male Head", parts 1 and 2 (free; 4–6 h).
+4. The Blender manual's sculpt brush pages: Clay, Clay Strips, Clay Thumb, Scrape, Smooth (1 h).
+
+### 5.2 Exercises (8–12 h), saved in `ArtSource/Practice/`
+
+1. **Navigation (1 h).** Orbit, pan, zoom, frame the selection (numpad .), and switch to front, side and top
+   (numpad 1, 3, 7), ten times without thinking. No numpad: Edit > Preferences > Input > Emulate Numpad.
+2. **`pebble.blend` (1 h).** A remeshed sphere, flat on one side, with three uneven lumps.
+3. **`bean.blend` (1–2 h).** A bean with one crisp Clay Thumb gouge. If this takes more than 2 h with a mouse,
+   buy a tablet (Wacom One S, XP-Pen Deco or Huion, about $40–70). Wacom tablets work on Sway through
+   libinput; check pressure in Edit > Preferences > Input > Tablet.
+4. **`forearm.blend` (2–3 h).** One forearm within 3 mm of the maquette side photo, at maquette scale.
+5. **`head.blend` (3–5 h).** The head within 3 mm of the front and side photos.
+
+### Phase 5 done when
+
+- [ ] all five files are saved;
+- [ ] `head.blend` is within 3 mm of the maquette's front and side outlines.
+
+## Phase 6 — The body parts (40–70 h, 6 weeks; 15–30 h on a fast track)
+
+Option A needs no UVs, retopology or rigging. Pick a route from 6.2; the steps below are for route 1, and routes
+2 and 3 replace step 6.4.2.
+
+### 6.1 Conventions (1 h)
+
+- One Blender file holds every part: `ArtSource/Puppet/Puppet.blend`. Track it with Git LFS:
+  `git lfs track "*.blend" "*.fbx"`.
+- Each part exports to `Assets/DrunkCharacter/Art/Meshes/SM_Puppet_<Body>.fbx`, where `<Body>` is the Unity
+  name (`Head`, `Forearm_L`, …). The Blender object has the same name.
+- Materials `M_…` go in `Art/Materials`, textures `T_…` in `Art/Textures`.
+
+### 6.2 Bring the puppet into Blender (2 h)
+
+1. In Blender: Properties > Scene > Units: Unit System Metric, Unit Scale 1.000, Length Meters. Save.
+2. In Unity: Window > Package Manager > + > Add package by name: `com.unity.formats.fbx`.
+3. In a new empty scene, place `Player.prefab` at (0, 0, 0). Select `Puppet`, then GameObject > Export To FBX…:
+   Export Format Binary, Include Model(s) Only, Object(s) Position World Absolute. Save as
+   `ArtSource/Guide/Guide.fbx`.
+4. In Blender: File > Import > FBX (.fbx) with the default settings. Select `Mesh_Head`: the N panel > Item >
+   Dimensions reads 0.36 m on each axis.
+5. Select all the imported objects, press Alt+P > Clear and Keep Transformation, and delete the empty `P_`
+   objects. Press M > New Collection, named `Guide`. Set Object Properties > Viewport Display > Display As:
+   Wire.
+
+### 6.3 First round trip (2–3 h)
+
+Test the whole pipeline on a throwaway head before sculpting anything real.
+
+1. Duplicate `Mesh_Head` (Shift+D, Esc) and apply its scale (Ctrl+A > Scale). In Sculpt Mode, add a 5 cm bump
+   on the front (the nose side) and one on the left (−X).
+2. File > Export > FBX with these settings, then save them as an operator preset named `Unity Part` (the + at
+   the top of the export dialog):
+   - Limit to Selected Objects ✓; Object Types: Mesh only
+   - Scale 1.00; Apply Scalings: FBX All; Forward −Z; Up Y; Apply Unit ✓; Apply Transform ✗
+   - Smoothing: Face; Apply Modifiers ✓
+   - Vertex Colors: sRGB; Prioritize Active Color ✓
+   - Bake Animation ✗
+3. In Unity, select the FBX, set these, and save them as a Preset:
+   - Model: Scale Factor 1, Convert Units ✓, Bake Axis Conversion ✓, Import Cameras ✗, Import Lights ✗,
+     Import BlendShapes ✗, Generate Colliders ✗, Normals: Import, Tangents: None
+   - Rig: Animation Type None
+   - Animation: Import Animation ✗
+   - Materials: Material Creation Mode None
+4. Expand the FBX in the Project window and assign its mesh to `Mesh_Head`'s MeshFilter. Set `Mesh_Head`'s
+   scale and `P_Head`'s `baseScale` to (1, 1, 1).
+
+**Done when:**
+- [ ] both bumps point the same way as in Blender: the front bump toward the nose, the left one toward −X;
+- [ ] the size matches the old sphere within 1 cm;
+- [ ] the head holds between beats.
+
+If an axis is wrong, change only Forward and Up, and repeat.
+
+### 6.4 Each part
+
+**Order:** Head, Nose (or sculpt it into the Head), Torso, Pelvis, UpperArm_L, Forearm_L, Thigh_L, Shin_L, then
+the right-side copies (step 3). Hands and feet wait for phase 7.
+
+1. **Start the part (Object Mode, 15 min).**
+   1. Select its guide and duplicate it (Shift+D, Esc).
+   2. Rename it with F2 to `SM_Puppet_<Body>` and move it to a collection named `Puppet` (M).
+   3. Object > Apply > Scale only, never Rotation or Location. The origin and axes stay the body's.
+
+   **Done when** the N panel's Scale reads 1, 1, 1 and its Rotation matches the guide's.
+2. **Sculpt the form (2–6 h).**
+   1. Mode menu (top left) > Sculpt Mode. In the header's Remesh popover, set Voxel Size to 0.005 m to block in
+      and 0.002 m for detail (0.0015 m on the nose), with Preserve Volume ✓ and Preserve Color Attributes ✓.
+   2. Press Remesh (Ctrl+R) whenever the brush stretches the mesh.
+   3. Block in with Clay Strips against the maquette photos, loaded as reference images in the front (numpad 1)
+      and side (numpad 3) views.
+   4. Add marks with Clay Thumb at puppet scale (9.3). Hold Shift while brushing to smooth.
+   5. **Joint balls.** End each piece at a joint in a rounded ball centred on the joint point, with a radius
+      equal to the piece's own (arms about 4.5–5 cm, legs about 7–9 cm). The neighbour's end then stays inside
+      it at any bend.
+   6. **Clothing edges.** Where a sleeve, trouser leg or collar ends, sculpt an overlapping clay lip, or make
+      it a separate piece and join it before export (9.2).
+
+   **Done when** the front and side silhouettes match the maquette photos.
+3. **Make the right side from the left (15 min each).** The right parts have their own axes (UpperArm_R is
+   turned −90° about Y, UpperArm_L +90°), so the mirrored mesh goes into a copy of the right guide.
+   1. Shift+C (cursor to world origin). Set Pivot Point to 3D Cursor.
+   2. Duplicate the left part, then Object > Mirror > X Global.
+   3. Duplicate the right guide. In Edit Mode, delete all its vertices (A, then X > Vertices). Back to Object
+      Mode.
+   4. Select the mirrored copy, then Shift-click the emptied guide so it is active, and press Ctrl+J. The joined
+      mesh takes the right body's origin and axes.
+   5. Rename it `SM_Puppet_<Body>` with the right body's name, and apply Scale.
+
+   **Done when** Overlays > Face Orientation shows only blue. If any red shows: Edit Mode, A, Shift+N.
+4. **Colour (30–60 min, before reducing).**
+   1. Object Data Properties > Color Attributes > +: name `Col`, Domain Vertex, Data Type Byte Color.
+   2. Set Viewport Shading > Solid > Color to Attribute.
+   3. In Sculpt Mode, open the brush shelf's Paint category. Paint with Paint Hard; soften with Paint Soft or
+      Blur. Follow the channels in 9.2.
+
+   **Done when** a 50% grey patch matches a 50% grey Color property side by side in `LookDev`.
+5. **Reduce (20–30 min).**
+   1. Duplicate the painted sculpt, rename it `<name>_HP`, move it to a collection named `HighPoly` and hide it
+      (H). Keep it: fixes and phase 10 need it.
+   2. On the original: Properties > Modifiers > Add Modifier > Generate > Decimate, Collapse.
+   3. Set Ratio = the 9.5 budget ÷ the current triangle count (Overlays > Statistics). Adjust until the
+      modifier's Face Count is at or below the budget.
+   4. Apply it (Ctrl+A over the modifier), then Object > Shade Smooth.
+
+   **Done when** Solid shading with a MatCap shows no pinches or streaks.
+6. **Export and swap in (15 min).**
+   1. File > Export > FBX with the `Unity Part` preset, to
+      `Assets/DrunkCharacter/Art/Meshes/SM_Puppet_<Body>.fbx`.
+   2. In Prefab Mode, assign it to the part's `Mesh_<Body>` MeshFilter, and set that object's scale and the
+      part's `baseScale` to (1, 1, 1).
+   3. Check it in play mode before starting the next part.
+
+   **Done when** it sits on its body with no gap, seen from the gameplay and close-up cameras.
+
+### Phase 6 done when
+
+- [ ] every body part except the hands and feet is a sculpt in the game;
+- [ ] the triangle totals are within 9.5 (Statistics overlay with all parts selected);
+- [ ] every `_HP` copy is kept in `Puppet.blend`.
+
+## Phase 7 — Face, hands, shoes and cosmetics (24–36 h, 3–4 weeks)
+
+1. **Eyes (4–6 h).** `SM_Puppet_Eye`, `SM_Puppet_Pupil` and `SM_Puppet_Lid_Open`, `_Half` and `_Closed`, pivots
+   at the eye centre, at the 7.1 sizes.
+2. **Mouths (5–7 h).** `SM_Puppet_Mouth_Closed`, `_Mid`, `_Wide`, `_Grimace` and `_Shock`, sharing one origin
+   at the mouth centre. Give each a raised lip 3–4 mm thick that sits against the head, so a swap reads as a
+   pressed-on piece. Paint the insides G = 1.
+3. **Hands (5–8 h).** `SM_Puppet_Hand_Relaxed_L`, `_Reach_L` and `_Grip_L`, 20 cm across, origin at the hand
+   sphere's centre. Mirror them into the `Mesh_Hand_R` guide (6.4 step 3).
+4. **Shoes (3–5 h).** `SM_Puppet_Foot_L` within the 7.4 limits: the sole flat, 5 cm below the origin, and a
+   2 cm toe curl. Mirror it to `SM_Puppet_Foot_R`. With the origin at the foot centre, the shoe's mesh child
+   goes back to local position (0, 0, 0).
+5. **Cosmetics (4–6 h).** At least one hat, one face item (glasses or a moustache), the scarf, one backpack,
+   and `SM_Puppet_Lump` if style B won.
+6. **Swap in and re-test (2–4 h).** Replace every placeholder, then run the stair check and the readability test
+   (12.2) again.
+
+### Phase 7 done when
+
+- [ ] no placeholders remain on the character or its cosmetics;
+- [ ] the readability test and the stair check pass with the final meshes.
+
+## Phase 8 — Assemble and tune (12–20 h, 2 weeks)
+
+1. **Worst poses (3–5 h).** Pause play mode (Ctrl+Shift+P) in five poses: a sprawled fall, a deep stumble, an
+   overhead grab, carrying another player, and climbing Stairs20. Fix any gap by reshaping the `_HP` joint
+   ball, then reduce and export again. Never fix a gap by moving an origin.
+2. **Dials (3–5 h).** Tune the section 13 dials on the full character. Log any change.
+3. **Style frame match (2–3 h).** In `LookDev`, place a Physical Camera with a 26 mm lens (a typical phone's main
+   camera) at 9.25 times the phone distance in `StyleFrame.txt`. Lay a screenshot at 50% opacity over
+   `StyleFrame.jpg`, and adjust the lights and material until the silhouette, joints and warmth match.
+4. **Turntable (1 h).** An 8-second, 360° turntable of the full character.
+
+### Phase 8 done when
+
+- [ ] none of the five poses shows a gap;
+- [ ] the overlay matches `StyleFrame.jpg` in silhouette and warmth.
+
+## Phase 9 — World, camera and settings (18–26 h, 2 weeks)
+
+1. **Anti-aliasing (30 min).** In `PC_RPAsset`, set MSAA to 4×. Keep the Main Camera's anti-aliasing at None or
+   SMAA, never TAA or STP.
+2. **Volume and flicker (3–4 h).**
+   1. Create `Assets/Settings/TestSceneProfile.asset` and assign it to `TestScene`'s Global Volume.
+   2. Film Grain: Thin1, intensity 0.15, response 0.8.
+   3. Optional tabletop Depth of Field: Bokeh, 50 mm, f/2.8, focused on `CameraTarget`.
+   4. Flicker: on each beat, set Post Exposure to a random value within ±0.0144 EV (±1%), clamped in code to
+      ±0.0426 EV (±3%). Change it through `volume.profile`, the runtime copy, never `sharedProfile`.
+3. **Set lighting (4–6 h).** Light the course with 3200 K spot lights (Range at most 15 m) and 2–3 emissive
+   practical lamps. Give floors, walls and stairs matte, handmade-looking materials.
+4. **Settings menu (4–6 h).** Every section 10 setting, saved in `PlayerPrefs`. Show a one-time photosensitivity
+   notice before turning on flicker or boil.
+5. **Flash check (1–2 h).** Record 2 minutes at 1080p and 60 fps with flicker at ±3% and boil on, and run it
+   through EA IRIS (it builds on Linux with CMake and OpenCV).
+
+### Phase 9 done when
+
+- [ ] IRIS reports no flash or pattern failures;
+- [ ] every section 10 setting is saved and works in a build.
+
+## Phase 10 (optional) — One skinned body (60–100 h)
+
+Only if the segment seams bother you after phase 9. It is a project of its own.
+
+1. **Fuse.** Join the `_HP` parts and voxel remesh at 0.003 m to fuse the joints. Retopologise to 15,000–25,000
+   quads (QuadriFlow, then clean up the loops at shoulders, hips and knees). Mark seams and unwrap. Bake Normal
+   (`T_Puppet_N`) and Color Attribute (`T_Puppet_VC`) at 2048 × 2048 in Cycles.
+2. **Armature.** 13 unparented bones at the body pivots, named after the bodies. Weight paint, testing the five
+   phase 8 poses. Import with Animation Type Generic.
+3. **In Unity.** Drive the bones on beats in `LateUpdate`, with position and rotation only, never the physics
+   scale. Set `SkinnedMeshRenderer.updateWhenOffscreen = true`. Map prints from UV0 instead of Triplanar, with
+   Fragment Normal Space Tangent and tangents calculated on import, now that there are UVs.
+
+**Done when** the five phase 8 poses show no stretching you don't accept and the body stays within the 9.5
+budget.
+
+## 12. Tests
+
+### 12.1 Motion playtest (the phase 1 gate)
+
+- **Players:** 3–5 who don't know the project, at least one prone to motion sickness.
+- **Variants,** blind on keys 1–4, in Latin-square order, 4 minutes each at the default `drunkAmount`:
+  1. smooth (holds off);
+  2. 12 beats a second, world hold;
+  3. 12 beats a second, root-smooth;
+  4. 8 beats a second, root-smooth.
+- **Course:** `TerrainCourse` start to end and back, then up Stairs15.
+- **Logged:** falls per minute, recovered ÷ started stumbles, Stairs15 time, gripped ÷ grab attempts.
+- **After each round:** ask "Did anything feel laggy or broken?" before mentioning stop motion, then give the
+  16-item Simulator Sickness Questionnaire.
+- **A stepped variant passes when:**
+  1. its falls per minute and stumble recovery are each within ±10% of smooth;
+  2. most players describe the motion as a style rather than lag;
+  3. no player's questionnaire total rises more than 20 points over their smooth round.
+
+### 12.2 Readability test (phases 4A and 7)
+
+- **Viewers:** 5 who don't know the project, watching 1080p Unity Recorder clips.
+- **Talking:** 18 clips of three characters side by side, 6 each at 5, 10 and 15 m, 10 s each, with a random
+  talker from `DebugVoice`. The viewer says who is talking within 3 s.
+- **Contact:** 6 clips of one character at 10 m walking, grabbing and releasing a cube. The viewer presses a key
+  at each foot plant and grab.
+- **Passes when:**
+  - at least 90% of talkers are named correctly at 10 m;
+  - at least 80% of plants and grabs are marked within ±0.25 s of the logged event.
+- Log the furthest distance with at least 80% talker accuracy as the proximity-voice range.
+
+### 12.3 Recovery playtest (phase 4B)
+
+- **Players:** 3–5, including a 2-player MPPM session with the client on Mobile4G.
+- **Rounds:** 5 minutes per style (C, A, B) in Latin-square order on `TerrainCourse` at `drunkAmount` 1.
+- **After each round:** rate delight from 1 to 5, and ask whether getting up got in the way.
+- **Pick** the highest-rated style whose median time from `RecoverStart` to `RecoverStand` is under 2 s and that
+  nobody says got in their way. Or combine A with C as its timeout fallback.
+
+## 13. Dials
+
+| Dial | Default | Range | Notes |
+|---|---|---|---|
+| `beatsPerSecond` | 12 | 8–24 | Judged again in phase 3. |
+| `rootSmooth` | from the playtest | on / off | |
+| `extraHoldBeats` | 1 | 0–2 | Extra intervals after a key-pose beat. |
+| Minimum beat interval | 1/24 s | fixed | Stops key poses forcing a beat every frame. |
+| `timingVariation` | 0 | 0–0.05 | Keep near 0; rhythm sells comedy. |
+| `chatterDegrees` | 0.75° | 0–2° | On parts that moved. |
+| `chatterMetres` | 0.004 m | 0–0.008 m | On parts that moved. |
+| `idleAmplitude` | 0.5° | 0–2° | Breathing on `P_Torso` and `P_Head` at 0.25 Hz. |
+| `squashBeats` | 2 | 1–3 | Scale (1.08, 0.85, 1.08); feet lowered by 15% of origin-to-sole. |
+| `_BoilStrength` | 0.3 | 0–1 | Times `_BoilMotion`. |
+| `_DisplacementStrength` | 0.005 m | 0–0.015 m | Boil displacement; 0 on cubes. |
+| `_PrintNormalStrength` | 0.5 | 0–2 | Fades out from 3 m to 8 m. |
+| Smoothness | 0.18 | 0.05–0.4 | Matte base. |
+| Coat Mask / Coat Smoothness | 0.35 / 0.65 | 0–0.6 / 0.4–0.85 | Oily sheen on the prints. |
+| Mouth attack / release | 0.03 s / 0.12 s | 0.01–0.1 / 0.05–0.3 s | |
+| Mouth thresholds, Mid / Wide | 0.15 / 0.55 | | Shapes hold at least 1/12 s. |
+| Pupil lead | 0.2 s, at most ±25° | 0–0.4 s | |
+| Blinks | every 2–6 s, 5 beats | | Rest at Half when drunk ≥ 0.6. |
+| Dent threshold, depth | 2.5 m/s; 1–6 cm | 1.5–4 m/s | 6 cm at 7 m/s; radius 2.5 × depth, at least 6 cm. |
+| Dent hold, repair | 6 s; 3 beats | 2–15 s | Or until `RecoverStand`. |
+| Flatten | 5 m/s; 3 beats | 3–8 m/s | 0.75 along the hit, 1.15 across. |
+| Get-up minDown / autoRecover | 1.5 s / 8 s | 0.5–4 s / 4–20 s | Cancelled when held or reset. |
+| Style A lift, timeout | 0.3 m clearance; 3 s | 0.1–0.6 m; 2.5–5 s | Falls back to `StandAt`. |
+| Style A drives | 4000 / 1000 linear; 800 / 80 slerp | | `maximumForce = float.MaxValue`. |
+| Hat thresholds | 12 rad/s, 60 m/s², 3 m/s, 110° for 0.2 s | calibrated | 1.5 × the drunk-walking peaks. |
+| Loose cosmetic | 1 s grace, 60 s timeout | 15–180 s | |
+| Scarf spring / damping | 60 / 6 | 20–150 / 2–15 | |
+| Flicker | Off (±1%, ±0.0144 EV when on) | up to ±3% (±0.0426 EV) | Clamped in code. |
+| Film grain | 0.15 (Thin1, response 0.8) | 0–0.4 | |
+
+## 14. Resources
+
+| Resource | Cost | Notes | Phase |
+|---|---|---|---|
+| [Grant Abbitt, Get Started With Blender](https://gamedev.tv/courses/get-started-blender) | Free | 8–12 h with practice | 5 |
+| [Blender Guru, Blender 5.0 donut](https://www.blenderguru.com/posts/blender-donut-v5-tutorial) | Free | Fallback; modelling and sculpting parts | 5 |
+| [CGBoost, Blender Sculpting for Beginners](https://www.cgboost.com/courses/blender-sculpting-for-beginners) | Free | 23 lessons, about 3.5 h of video | 5 |
+| [Ryan King Art, Stylized Male Head](https://bazaar.blendernation.com/?p=15686) | Free | Two parts | 5 |
+| [Unity Learn, Get started with Shader Graph](https://learn.unity.com/tutorial/get-started-with-shader-graph) | Free | | 3 |
+| [Blender manual, sculpt brushes](https://docs.blender.org/manual/en/latest/sculpt_paint/sculpting/brushes/brushes.html) | Free | Reference | 5–7 |
+| KIRI Engine, Polycam | Free tiers | Phone scanning for route 2 | 6 |
+| [EA IRIS](https://github.com/electronicarts/IRIS) | Free | Flash analyser; builds on Linux | 9 |
+
+---
+
+# Part IV — Records
+
+## 15. Decision log
+
+Add a row whenever a direction or dial is settled.
+
+| Date | Decision | Why |
+|---|---|---|
+| 2026-10-28 | Physics and camera never step; only the drawn puppet holds | Spider-Verse's simulation lesson; Harold Halibut's and South of Midnight's camera experience |
+| 2026-10-28 | Segmented puppet (option A) first; skinned body is optional phase 10 | Authentic to real puppets, no rigging, beginner-friendly, maps one-to-one onto the ragdoll |
+| 2026-10-28 | Every effect has a setting; flicker capped at ±3% and off by default | Player split and motion sickness in South of Midnight; WCAG and Xbox flash guidance |
+| 2026-10-28 | Face, hands and feet oversized and high-contrast; mouth driven by voice level | Alan: tell who is talking in proximity voice; read where hands and feet are and what they touch |
+| 2026-10-28 | Shoes never change the foot colliders | The stair physics is tuned around them |
+| 2026-10-28 | Maquette scale 1:9.25; sizes in this guide are game metres | One scale rule for every measurement |
+| 2026-10-28 | Vertex colour holds variation and masks, not hue; hue index = `OwnerClientId % 4` | Player hues are applied per player, with no new network state |
+| 2026-10-28 | Beat modulo 1200 | Clean 2-, 3- or 4-variant swaps |
+| 2026-10-28 | Hard hits dent the clay with shader dents, repaired over beats | Alan: impacts should look like clay; dents land where the hit is |
+| 2026-10-28 | Get-up style not fixed; build C, A and B and compare | Alan: explore styles, the invisible hand among them |
+| 2026-10-28 | Physical cosmetics; loose items are never under `Player`; identity comes from hue | Alan: a hat that falls off; `BalanceSensor` gathers every Rigidbody under `Player`; cosmetics can fall off |
+| 2026-10-29 | Each puppet part is a scale-1 pose object with a scaled mesh child; nose and hands are plain children of their bodies' parts | Face pieces and hats keep their size from placeholders to sculpts and don't shear in a squash; nothing separates at the wrist |
+| 2026-10-29 | `SG_Clay` is URP Lit with Clear Coat and object-space normals; dents are computed in part metres | Two-layer clay look with full URP lighting; sculpts have no UVs, so no tangents |
+
+## 16. Risks, open questions and checked facts
+
+**Risks**
+
+- **Holds read as lag or cause sickness.** Mitigations: key-pose beats, chatter, root-smooth, judging after the
+  clay is on, the settings, and the blind playtest gate.
+- **Latency.** Holds add 0–83 ms (about 42 ms on average) at 12 a second. Key-pose beats remove it at the
+  moments players react to.
+- **Multiplayer.** Remote characters already lag by network interpolation, so test under Mobile4G.
+- **Shoes clip stairs.** Mitigations: the size limits and toe curl in 7.4, and the stair check.
+- **The mouth reads only at short range.** The readability test sets the proximity-voice range, not the other
+  way round.
+- **Seams in extreme poses.** Mitigations: joint balls, clothing, or phase 10.
+- **Style A snags** on geometry or other players. Mitigation: the 3 s timeout falls back to `StandAt`.
+- **Dents look faceted.** Mitigations: the 6 cm minimum radius and recomputed normals; raise the part's
+  triangle budget if needed.
+- **Loose cosmetics add network objects.** At most one per player per slot, and they time out after 60 s.
+- **`.blend` and `.fbx` size in git.** Use Git LFS.
+- **Losing the high-poly sculpts.** Keep the `_HP` copies.
+- **Scope.** Phases 5–7 are long for a new 3D artist; the fast-track routes in 6.2 shorten phase 6. Phases 1–4B
+  already give a playable, judgeable, readable look.
+
+**Checked facts (2026-10-28 and 2026-10-29)**
+
+- Unity 6000.6.0f1, URP 17.6.0, Shader Graph 17.6.0, Netcode for GameObjects 2.13.3.
+- URP: Forward+, SRP Batcher on, GPU Resident Drawer on, MSAA off. `PC_RPAsset` and `TestScene` share
+  `SampleSceneProfile.asset`.
+- Enter Play Mode Options: on, with domain and scene reload off.
+- `Player.prefab`: the scales, masses, rotations and child offsets in section 4; network tick rate 60.
+- The Custom Lighting sample's `Lit Oren Nayar` uses only the main light, and all its graphs use the Unlit
+  target (read in the package source).
+- Blender 5.2.2 LTS: Sculpt Mode's brush shelf has a Paint category (Airbrush, Blend Hard, Blend Soft, Blend
+  Square, Blur, Paint Blend, Paint Hard, Paint Hard Pressure, Paint Soft, Paint Soft Pressure, Paint Square,
+  Sharpen, Smear). Paint Hard paints into the active Byte Color vertex attribute.
+
+## 17. Review record
+
+| Version | Perspective | Main changes |
+|---|---|---|
+| 0.1 → 0.2 | Unity programmer, art director, stop-motion animator, 3D art teacher, game designer | 13 bodies; puppet as a sibling, copied in `LateUpdate`; static reset; look-dev scene and style frame; maquette; key-pose beats; local boil; root-smooth; blind playtest |
+| 0.2 → 0.3 | Literal followers; Alan's requirements | Network counters and `Snapped`; pixel sizes; scale rule; exact Blender and Unity settings; readable face and voice-driven mouth; hands and feet; dents; get-up styles; cosmetics |
+| 0.3 → 0.4 | Gameplay, physics and network programmer | Approach-speed impacts; foot dent filter; `StandAt` with an overlap check; `Stand`; `IsHeld()`; detach calibration; loose items on `PlayerBody` |
+| 0.4 → 0.5 | Gemini review | Pose object and mesh child split; Clear Coat instead of the Custom Lighting sample; object-space normals; dent normals without tangents; client counter baseline; `maximumForce`; `RecoverStand` hook; fast-track routes for phase 6 |
+| 0.5 → 0.6 | Claude, checked against the code | Rewritten as a guidebook. Fixed: nose and hand offsets in metres; root-smooth offsets in metres; hand dents measured from the hand; dent maths in part metres; mesh children named `Mesh_<Body>` so the Blender guides are identifiable; foot squash for any shoe height; no Emission lighting term; no `TorsoLean` change; Meshroom replaced; relative links |
 
 ## 18. Sources
 
 - [Spider-Verse animation technique (/Film)](https://www.slashfilm.com/562748/into-the-spider-verse-technique)
-- [Harold Halibut developers on why they cut stepped character motion (Steam)](https://steamcommunity.com/app/924750/discussions/0/4208119923880796581)
-- [Making Harold Halibut — photogrammetry puppet workflow (Creative Bloq)](https://www.creativebloq.com/features/making-harold-halibut)
-- [South of Midnight's stop-motion visual language (ACM SIGGRAPH Blog, 2026)](https://blog.siggraph.org/2026/04/stop-motion-southern-gothic-and-games-the-visual-language-of-south-of-midnight.html/)
-- [South of Midnight at 60 fps and motion sickness tuning (GamesRadar)](https://www.gamesradar.com/games/action/yes-south-of-midnight-will-still-run-at-60fps-despite-its-stop-motion-animation-youre-still-in-this-crafted-world-without-making-it-you-know-too-nauseating/)
-- [South of Midnight stop-motion gameplay toggle (Gameranx)](https://gameranx.com/updates/id/517240/article/south-of-midnight-runs-on-unreal-4-xbox-targets-60-fps-stop-motion-can-be-toggled-off/)
-- [Guilty Gear Xrd's stepped 3D art style (GDC Vault)](https://gdcvault.com/play/1022031/GuiltyGearXrd-s-Art-Style-The)
-- [Rowbotham — *Creating a Realistic Clay Shader for Digital Stop Motion* (UWE / Aardman Report)](https://zar67.github.io/Portfolio/assets/ClayRendering/ClayRendering-Report.pdf)
-- [Johansson — *Clay Material in Unity*](https://www.jonasjohansson.dev/blog/clay-material-in-unity/)
-- [joebinns/clay — Unity Shader Graph Clay Material (GitHub)](https://github.com/joebinns/clay)
+- [Harold Halibut developers on cutting stepped motion (Steam)](https://steamcommunity.com/app/924750/discussions/0/4208119923880796581)
+- [Making Harold Halibut (Creative Bloq)](https://www.creativebloq.com/features/making-harold-halibut)
+- [South of Midnight's visual language (ACM SIGGRAPH Blog)](https://blog.siggraph.org/2026/04/stop-motion-southern-gothic-and-games-the-visual-language-of-south-of-midnight.html/)
+- [South of Midnight at 60 fps (GamesRadar)](https://www.gamesradar.com/games/action/yes-south-of-midnight-will-still-run-at-60fps-despite-its-stop-motion-animation-youre-still-in-this-crafted-world-without-making-it-you-know-too-nauseating/)
+- [South of Midnight's stop-motion toggle (Gameranx)](https://gameranx.com/updates/id/517240/article/south-of-midnight-runs-on-unreal-4-xbox-targets-60-fps-stop-motion-can-be-toggled-off/)
+- [Guilty Gear Xrd's art style (GDC Vault)](https://gdcvault.com/play/1022031/GuiltyGearXrd-s-Art-Style-The)
+- [Rowbotham, Creating a Realistic Clay Shader for Digital Stop Motion](https://zar67.github.io/Portfolio/assets/ClayRendering/ClayRendering-Report.pdf)
+- [Johansson, Clay Material in Unity](https://www.jonasjohansson.dev/blog/clay-material-in-unity/)
+- [joebinns/clay (GitHub)](https://github.com/joebinns/clay)
 - [The Advanced Art of Stop-Motion Animation: Building Puppets (AWN)](https://www.awn.com/animationworld/advanced-art-stop-motion-animation-building-puppets-part-1)
 - [Aardman's Early Man puppets (VFX Voice)](https://www.vfxvoice.com/aardman-goes-back-to-stop-motion-basics-with-early-man/)
-- [WCAG 2.3.1 — Three Flashes or Below Threshold](https://www.w3.org/WAI/WCAG22/Understanding/three-flashes-or-below-threshold.html)
-- [Xbox Accessibility Guideline 117 — Photosensitivity](https://devdocs.xbox.com/gaming/accessibility/xbox-accessibility-guidelines/117)
-- [EA IRIS Photosensitivity Analyser (GitHub)](https://github.com/electronicarts/IRIS)
-- [Blender Sculpt Brushes Manual](https://docs.blender.org/manual/en/latest/sculpt_paint/sculpting/brushes/brushes.html)
-- [Blender to Unity FBX Export Checklist (Cinevva)](https://app.cinevva.com/guides/blender-to-unity-export-checklist)
-- [Miniature Faking / Tabletop Depth of Field (Wikipedia)](https://en.wikipedia.org/wiki/Miniature_faking)
+- [WCAG 2.3.1, Three Flashes or Below Threshold](https://www.w3.org/WAI/WCAG22/Understanding/three-flashes-or-below-threshold.html)
+- [Xbox Accessibility Guideline 117](https://devdocs.xbox.com/gaming/accessibility/xbox-accessibility-guidelines/117)
+- [EA IRIS (GitHub)](https://github.com/electronicarts/IRIS)
+- [Blender to Unity export checklist (Cinevva)](https://app.cinevva.com/guides/blender-to-unity-export-checklist)
+- [Miniature faking (Wikipedia)](https://en.wikipedia.org/wiki/Miniature_faking)
