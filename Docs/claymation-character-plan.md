@@ -2,7 +2,7 @@
 
 **Project:** Physical Walking Prototype, the drunk active-ragdoll character. This guide moves to the game repo
 with the character.
-**Version:** 0.6, 2026-10-29.
+**Version:** 0.7, 2026-10-30.
 **Owner:** Alan makes every look decision and every asset. This guide explains the look, specifies the systems
 and walks through building them. It gives exact values and steps, not finished code.
 
@@ -235,27 +235,29 @@ Player
    │  └─ Mesh_Pelvis             MeshFilter + MeshRenderer, scale = baseScale
    ├─ P_Head
    │  ├─ Mesh_Head
-   │  ├─ P_Nose
+   │  ├─ P_Nose                  PuppetPart (source = null), local (0, -0.018, 0.198)
    │  │  └─ Mesh_Nose
    │  ├─ Eyes, Mouth             phase 4A
    │  └─ Hat                     phase 4B
    ├─ P_Forearm_L
    │  ├─ Mesh_Forearm_L
-   │  └─ P_Hand_L
+   │  └─ P_Hand_L                PuppetPart (source = null), local (0, -0.18, 0)
    │     └─ Mesh_Hand_L
    └─ … one P_<Body> per body
 ```
 
-- **One `P_<Body>` per physics body (13).** Each has a `PuppetPart` and stays at scale (1, 1, 1); it only
-  sets position and rotation.
+- **One `P_<Body>` per physics body (13).** Each has a `PuppetPart` with `source` set to its body and stays at
+  scale (1, 1, 1); it only sets position and rotation.
 - **Its `Mesh_<Body>` child carries the scale.** `baseScale` is the body's `lossyScale` while the mesh is a
   Unity primitive, and (1, 1, 1) once it is a sculpt. Squash scales the mesh child, never `P_<Body>`. At rest
   the mesh child sits at local (0, 0, 0) with no rotation; the placeholder shoes in phase 4A are the one
   exception.
-- **`P_Nose` and `P_Hand_L/R` are plain children,** because the nose and hands are rigid to their bodies. They
-  move with their parent's chatter and breathing, so nothing separates at the wrist. Their local position is
-  the offset in metres: nose (0, −0.018, 0.198), hands (0, −0.18, 0). Don't copy the source's
-  `localPosition`: it is measured in the body's scaled space and would put the nose 55 cm in front of the face.
+- **`P_Nose` and `P_Hand_L/R` are children of `P_Head` and `P_Forearm_L/R`, with a `PuppetPart` whose
+  `source` is empty.** With no source, `PuppetPart` skips pose copying and chatter, so the nose and hands stay
+  rigid to their parent and nothing separates at the wrist. It still runs the material, `_BoilMotion` (from its
+  own world movement), squash and dents. Set their local position in metres: nose (0, −0.018, 0.198), hands
+  (0, −0.18, 0). Don't copy the original child's `localPosition`: it is in the body's scaled space and would
+  put the nose 55 cm in front of the face.
 - **Face pieces and cosmetics go under `P_Head` or `P_Torso`,** not under a mesh child, so they keep their real
   size and don't shear when the part squashes.
 
@@ -275,23 +277,24 @@ One per scene.
 
 ### 5.4 `PuppetPart` and `Puppet`
 
-`PuppetPart` fields: `source` (its body), `pelvis` (the Pelvis body, for root-smooth), `mesh` (its mesh child)
-and `baseScale`.
+`PuppetPart` fields: `source` (its body, or null on `P_Nose` and `P_Hand_L/R`), `pelvis` (the Pelvis body, for
+root-smooth), `mesh` (its mesh child) and `baseScale`.
 
 | Feature | Behaviour |
 |---|---|
-| World hold | On a beat, `transform.SetPositionAndRotation(source.position, source.rotation)`. Read the Transform, which is interpolated, never `Rigidbody.position`. |
-| Root-smooth | `P_Pelvis` copies the Pelvis every frame. Every other part, on a beat, stores its pose relative to the Pelvis in metres: `relPos = Quaternion.Inverse(pelvis.rotation) * (source.position - pelvis.position)` and `relRot = Quaternion.Inverse(pelvis.rotation) * source.rotation`. Every frame it applies them to `P_Pelvis`: position `P_Pelvis.position + P_Pelvis.rotation * relPos`, rotation `P_Pelvis.rotation * relRot`. Don't use `pelvis.InverseTransformPoint`: the Pelvis is scaled, so it isn't in metres. |
-| Moved | A part moved if its position changed more than 1 mm or its rotation more than 0.5° since its last beat. |
-| Chatter | On a beat, if the part moved, add a random rotation of up to `chatterDegrees` about a random axis and a random offset of up to `chatterMetres`. Each beat replaces the last one's chatter; it never adds up. |
+| World hold | If `source != null`, on a beat `transform.SetPositionAndRotation(source.position, source.rotation)`. Read the Transform, which is interpolated, never `Rigidbody.position`. When `source == null`, leave `transform` untouched so it follows its parent `P_<Body>`. |
+| Root-smooth | `P_Pelvis` copies the Pelvis every frame. Every other part with `source != null`, on a beat, stores its pose relative to the Pelvis in metres: `relPos = Quaternion.Inverse(pelvis.rotation) * (source.position - pelvis.position)` and `relRot = Quaternion.Inverse(pelvis.rotation) * source.rotation`. Every frame it applies them to `P_Pelvis`: position `P_Pelvis.position + P_Pelvis.rotation * relPos`, rotation `P_Pelvis.rotation * relRot`. Don't use `pelvis.InverseTransformPoint`: the Pelvis is scaled, so it isn't in metres. |
+| Moved | A part moved if its world position changed more than 1 mm or its world rotation more than 0.5° since its last beat. |
+| Chatter | On a beat, if `source != null` and the part moved, add a random rotation of up to `chatterDegrees` about a random axis and a random offset of up to `chatterMetres`. Each beat replaces the last one's chatter; it never adds up. |
 | Moving hold | The character is idle when the pelvis has moved slower than 0.05 m/s for 0.5 s. On each idle beat, pitch `P_Torso` and `P_Head` by `idleAmplitude × sin(2π × 0.25 × Time.time)` degrees about the pelvis's right axis. Clear it on the first beat that isn't idle. |
 | Squash | Scale the mesh child to `baseScale × (1.08, 0.85, 1.08)` for `squashBeats` beats, then restore it on a beat. On feet, also lower the mesh child by 15% of the distance from its origin to its sole (7.5 mm on the bare foot box), so the sole stays on the floor. |
-| Spawn | After `OnEnable`, copy every frame until the first beat. The network moves the character after `OnEnable`, and clients wait for their first frame. |
+| Spawn | After `OnEnable`, copy every frame until the first beat (when `source != null`). The network moves the character after `OnEnable`, and clients wait for their first frame. |
 | Snap | When `KeyPoseEvents.Snapped` fires, copy at once instead of waiting for a beat. |
-| Material | In `Awake`, take `renderer.material` for its mesh child (and for the nose or hand mesh under it) and set `_PartSeed` and `_BaseScale` (= `baseScale`). In `OnDestroy`, `Destroy` those materials. Don't use a MaterialPropertyBlock; it turns off the SRP Batcher. |
+| Material | In `Awake`, take `renderer.material` for its mesh child and set `_PartSeed` and `_BaseScale` (= `baseScale`). In `OnDestroy`, `Destroy` that material. Don't use a MaterialPropertyBlock; it turns off the SRP Batcher. |
 
-`Puppet` holds `List<PuppetPart> parts`. In `Awake` it fills the list by taking each body in
-`BalanceSensor.Bodies` and finding the child named `P_<body name>`, so `parts[i]` belongs to `Bodies[i]`.
+`Puppet` holds `List<PuppetPart> parts` (13) and `PuppetPart leftHand, rightHand, nose`. In `Awake` it fills
+`parts` by taking each body in `BalanceSensor.Bodies` and finding the child named `P_<body name>`, so `parts[i]`
+belongs to `Bodies[i]`, and caches `P_Hand_L`, `P_Hand_R` and `P_Nose`.
 
 ### 5.5 Key poses and networking
 
@@ -460,8 +463,9 @@ float approachSpeed = Mathf.Abs(Vector3.Dot(collision.relativeVelocity, contact.
   joint and support forces, about 4 m/s on a standing foot.
 - **Feet** dent only while `IsFallen`, or when another Rigidbody hits them. Stepping off the 0.5 m drop lands
   at about 3.1 m/s and would otherwise dent every step down.
-- **Which mesh.** If `contact.thisCollider` is a `Hand_L` or `Hand_R` sphere, dent that hand and use the hand's
-  Transform as `origin`. Otherwise dent the body's own part and use the body's Transform.
+- **Which mesh.** If `contact.thisCollider` is a `Hand_L` or `Hand_R` sphere, dent `Puppet.leftHand` or
+  `Puppet.rightHand` and use the hand collider's Transform as `origin`. Otherwise dent the body's own
+  `PuppetPart` and use the body's Transform.
 - **Size.** Dent at 2.5 m/s or more. Depth is 1 cm at 2.5 m/s, rising linearly to 6 cm at 7 m/s, then clamped.
   Radius = `Mathf.Clamp(2.5f * depth, 0.06f, half the part's smallest size)`.
 - **Where,** in metres along the origin's axes:
@@ -472,12 +476,12 @@ float approachSpeed = Mathf.Abs(Vector3.Dot(collision.relativeVelocity, contact.
   ```
 
   The numbers mean the same on a scaled primitive and on a sculpt.
-- **Flatten** at 5 m/s or more: as well as the dent, squash the hit mesh for 3 beats, 0.75 along its local axis
-  closest to `contact.normal` and 1.15 along the other two.
+- **Flatten** at 5 m/s or more: as well as the dent, squash the hit `PuppetPart` for 3 beats, 0.75 along its
+  local axis closest to `contact.normal` and 1.15 along the other two.
 
 **Network.** Put a reliable `[Rpc(SendTo.NotServer)] void DentRpc(byte body, bool hand, Vector3 centre,
 Vector3 pushDir, byte depthMm, byte radiusMm, bool flatten)` on `NetworkPose`. `body` indexes `Puppet.parts`,
-which matches `BalanceSensor.Bodies`.
+which matches `BalanceSensor.Bodies`; when `hand` is true, route it to `Puppet.leftHand` or `Puppet.rightHand`.
 
 **Timing.** Apply the dent on the next beat. Hold it 6 s, or until `RecoverStand`, then step it down on beats:
 two thirds, one third, gone.
@@ -503,7 +507,9 @@ two thirds, one third, gone.
    float3 P0 = Displace(P);
    float3 N2 = normalize(cross(Displace(P + T * 0.005) - P0, Displace(P + B * 0.005) - P0));
    ```
-4. Output position `P0 / _BaseScale` and normal `normalize(N2 × _BaseScale)`.
+4. Add the boil displacement (9.4) in part metres before converting back to object space:
+   `P_final = (P0 + N2 × boilOffsetMetres) / _BaseScale`, and output Vertex Normal `normalize(N2 × _BaseScale)`.
+   Adding boil in part metres means a 5 mm boil is 5 mm on both scaled primitives and unit-scale sculpts.
 
 Dents need vertices 1–2 cm apart. Sculpts have that; primitives don't (section 11, phase 4B.1).
 
@@ -526,13 +532,16 @@ Check it before starting and every `FixedUpdate` during a recovery. If the chara
 **New methods**
 
 - **`FootPlacement.PlantAt(Vector3 origin, Quaternion rotation)`.** Move the body of `PlantAtSpawn` into it,
-  placing the foot at `origin + rotation * spawnLocalPosition`. `PlantAtSpawn` then calls it with the rig
-  root's position and rotation. In `PlantAt`, find the ground under the foot with `Ground.At`, so a foot on a
-  stair lands on its own step.
+  placing the foot at `spawnPos = origin + rotation * spawnLocalPosition` and `spawnRot = rotation *
+  spawnLocalRotation`. `PlantAtSpawn` then calls it with the rig root's position and rotation. In `PlantAt`,
+  find the ground under the foot with `Ground.At(spawnPos, spawnPos.y - FootGroundOffset, out Vector3 planted,
+  out Vector3 normal)`, searching around the sole as `PlantUnderAnkle` does. When it hits, set
+  `groundPoint = planted` and `groundNormal = normal`, and place the foot at `planted + Vector3.up *
+  FootGroundOffset`, so a foot on a stair lands on its own step. When it misses, keep today's behaviour.
 - **`PlayerController.StandAt(Vector3 pelvisPoint, float yaw)`,** used by styles B and C and by style A's
   timeout:
-  1. `rot = Quaternion.Euler(0, yaw, 0)`. Pass the owner's heading (`CurrentInput.HeadingYaw`); `FixedUpdate`
-     sets the heading from input every tick anyway.
+  1. `rot = Quaternion.Euler(0, yaw, 0)`. Pass the owner's heading (`CurrentInput.HeadingYaw`). Don't set
+     `headingYaw`: `FixedUpdate` already copies it from `CurrentInput` every tick, even while fallen.
   2. `origin = pelvisPoint - (rot * spawnLocalPositions[pelvisIndex]).Flat()`. Find `pelvisIndex` and
      `footIndex` in `Bodies` once, in `Awake`.
   3. `groundY = Ground.HeightAt(pelvisPoint, pelvis.position.y)` and
@@ -546,7 +555,7 @@ Check it before starting and every `FixedUpdate` during a recovery. If the chara
      invoke `CharacterReset` (this clears `NetworkPlayer.IsFallen` and bumps the reset count so clients snap);
      raise `RecoverStand`. Unlike `ResetCharacter`, keep `CurrentInput`.
 - **`PlayerController.Stand()`,** used by style A after the set-down. No teleport:
-  1. On both feet call a new `FootPlacement.PlantUnderAnkle()`, which sets the ground point from
+  1. On both feet call a new `FootPlacement.PlantUnderAnkle()`, which sets `groundPoint` and `groundNormal` from
      `Ground.At(RealAnkle, RealSoleHeight, …)`, right under the real foot, so the legs don't snap.
   2. Clear the fall meter, momentum and sway; set `IsFallen = false`; raise `RecoverStand`.
   3. `Stand` doesn't invoke `CharacterReset`, so `NetworkPlayer` must also clear its fallen flag on
@@ -566,13 +575,17 @@ beats) and repairs all dents. The host puts back any loose cosmetics (8.3).
 | D. Scramble up | Rolls onto its knees and pushes itself up. | A multi-stage controller. Skip it unless A, B and C all fail. | 20+ h |
 
 **Style A's joint:** X, Y and Z drives with `positionSpring` 4000 and `positionDamper` 1000; Rotation Drive
-Mode Slerp with spring 800 and damper 80. Two traps:
+Mode Slerp with spring 800 and damper 80. Three traps:
 
 1. A `JointDrive` made in code has `maximumForce` 0, which applies no force. Set `maximumForce =
    float.MaxValue`.
 2. Set `autoConfigureConnectedAnchor = false` before setting `anchor` to (0, 0.5, 0), the top of the Torso box
    in its local space. With no connected body, `connectedAnchor` is a world position; move it each
    `FixedUpdate`.
+3. A runtime `ConfigurableJoint` measures `targetRotation` relative to the body's rotation when the joint was
+   created (`startRot = torso.rotation`). Without setting `targetRotation`, the Slerp drive holds the torso in
+   its fallen horizontal pose. Set `desiredRot = Quaternion.Euler(0, CurrentInput.HeadingYaw, 0) *
+   spawnLocalRotations[torsoIndex]` and `joint.targetRotation = Quaternion.Inverse(desiredRot) * startRot`.
 
 ### 8.3 Cosmetics
 
@@ -635,11 +648,15 @@ The vertex colour attribute `Col` holds variation, not hue:
 - **Puppet scale.** Prints are sized as on the 20 cm maquette, so they appear 9.25 times larger on the
   character. A 1.5 cm thumb smear becomes 14 cm, 26 px at 5 m. A texture of a 10 cm slab then covers 0.925 m,
   so set the Triplanar Tile to 1.08.
-- **Triplanar node:** Type Normal, Input Space Object, Normal Output Space Object.
+- **Triplanar node:** Type Normal, Input Space Object, Normal Output Space Object, Normal input wired to
+  `normalize(Normal (Object) / _BaseScale)` so non-uniform primitive scales don't skew the projection weights.
 - **Position input:** Position (Object) × `_BaseScale`. Don't use the Object node's Scale: it changes during a
   squash and the prints would slide.
-- **Distance fade:** fade the print normal strength and the Coat Mask from full at 3 m to zero at 8 m. Keep
-  mipmaps on and Aniso Level at 4.
+- **Strength and distance fade:** `strength = _PrintNormalStrength × fade`, where `fade` runs from 1 at 3 m to
+  0 at 8 m. Fade the Coat Mask by the same `fade`. Keep mipmaps on and Aniso Level at 4.
+- **Blend in object space:** `normalize(lerp(Normal (Object), normalize(triplanarNormal × _BaseScale),
+  strength))`. Don't use the Normal Strength node: it expects a tangent-space normal and returns (0, 0, 1) at
+  strength 0, which in object space points every surface along +Z.
 - **Textures:** start with a stock print normal map (cgbookcase, as used by joebinns/clay). Making your own is
   step 3.4.
 
@@ -651,8 +668,9 @@ The vertex colour attribute `Col` holds variation, not hue:
   Swap them; never scroll them.
 - **`_BoilMotion`,** per part: on each beat, `PuppetPart` sets it to `Mathf.Clamp01(metres moved since the last
   beat / 0.05f)`. Only call `SetFloat` when it changes by more than 0.01.
-- Multiply the variant blend and a 5 mm displacement along the normal (from a 3D noise) by `_BoilMotion ×
-  _BoilStrength`. Parts that didn't move stay still.
+- Multiply the variant blend and a 5 mm displacement along the part-metres normal (from a 3D noise sampled at
+  `Position (Object) × _BaseScale`) by `_BoilMotion × _BoilStrength`, then divide by `_BaseScale` (as in 8.1
+  step 4). Parts that didn't move stay still.
 - Unity's Cube primitive (Pelvis, Torso, feet and nose until phase 6) has split normals that crack open when
   displaced. Keep `_DisplacementStrength` at 0 on cubes.
 
@@ -760,9 +778,11 @@ Open `Player.prefab` in Prefab Mode.
    3. Add an empty child named `Mesh_<Body>`: position 0, rotation 0, scale = the body's scale (section 4 table).
       Copy the body's MeshFilter and MeshRenderer onto it, and set `mesh` and `baseScale` on the `PuppetPart`.
 3. **Nose:** under `P_Head`, add an empty `P_Nose` at local position (0, −0.018, 0.198), rotation 0, scale 1.
-   Under it add `Mesh_Nose` with scale (0.0648, 0.0648, 0.108) and the Nose's MeshFilter and MeshRenderer.
+   Add `PuppetPart` with `source` left empty (None). Under it add `Mesh_Nose` with scale (0.0648, 0.0648, 0.108)
+   and the Nose's MeshFilter and MeshRenderer, and set `mesh` and `baseScale` on `P_Nose`'s `PuppetPart`.
 4. **Hands:** under each `P_Forearm_L/R`, add an empty `P_Hand_L/R` at local position (0, −0.18, 0), scale 1.
-   Under it add `Mesh_Hand_L/R` with scale (0.11, 0.11, 0.11) and the hand's MeshFilter and MeshRenderer.
+   Add `PuppetPart` with `source` left empty (None). Under it add `Mesh_Hand_L/R` with scale (0.11, 0.11, 0.11)
+   and the hand's MeshFilter and MeshRenderer, and set `mesh` and `baseScale` on `P_Hand_L/R`'s `PuppetPart`.
 5. Remove the MeshFilter and MeshRenderer from the 16 originals: the 13 bodies, Nose and both hands. Leave their
    colliders and Rigidbodies alone.
 
@@ -880,12 +900,12 @@ Check each step in `LookDev` before the next.
 3. **Prints:** the Triplanar node set up as in 9.3, with the stock print normal map.
 4. **Sheen:** Smoothness 0.18; Coat Mask = print mask × 0.35; Coat Smoothness 0.65. Compare with the coat off
    and log which you keep.
-5. **Fade:** prints and coat fade out from 3 m to 8 m.
+5. **Fade:** prints and coat fade out from 3 m to 8 m, blended in object space as in 9.3.
 6. **Boil** (9.4): `_StopMotionBeat`, `_PartSeed`, `_BoilMotion` and three variants. `PuppetPart` sets
-   `_PartSeed` and `_BaseScale` in `Awake`, sets `_BoilMotion` on beats, and destroys its materials in
+   `_PartSeed` and `_BaseScale` in `Awake`, sets `_BoilMotion` on beats, and destroys its material in
    `OnDestroy`.
-7. **Boil displacement:** 5 mm × `_BoilMotion` along the normal, on spheres and capsules only. Keep it at 0 on
-   cubes.
+7. **Boil displacement:** 5 mm × `_BoilMotion` along the part-metres normal, divided by `_BaseScale` (9.4), on
+   spheres and capsules only. Keep it at 0 on cubes.
 
 ### 3.4 Your own prints, style sheet, rate and scale (6–9 h)
 
@@ -1362,6 +1382,8 @@ Add a row whenever a direction or dial is settled.
 | 0.3 → 0.4 | Gameplay, physics and network programmer | Approach-speed impacts; foot dent filter; `StandAt` with an overlap check; `Stand`; `IsHeld()`; detach calibration; loose items on `PlayerBody` |
 | 0.4 → 0.5 | Gemini review | Pose object and mesh child split; Clear Coat instead of the Custom Lighting sample; object-space normals; dent normals without tangents; client counter baseline; `maximumForce`; `RecoverStand` hook; fast-track routes for phase 6 |
 | 0.5 → 0.6 | Claude, checked against the code | Rewritten as a guidebook. Fixed: nose and hand offsets in metres; root-smooth offsets in metres; hand dents measured from the hand; dent maths in part metres; mesh children named `Mesh_<Body>` so the Blender guides are identifiable; foot squash for any shoe height; no Emission lighting term; no `TorsoLean` change; Meshroom replaced; relative links |
+| 0.6 → 0.7 | Second Gemini review against URP 17.6 & codebase | `P_Nose` and `P_Hand_L/R` carry `PuppetPart` with `source = null` so they stay rigid to their parent while running material, boil, squash and dent logic; Object-Space Triplanar normal fade uses `Normalize(Lerp(Normal (Object), triplanarNormal × _BaseScale, strength))` instead of the Tangent-Space `Normal Strength` node; boil vertex displacement is added in part metres alongside `SG_Dent`; restored Style A's `ConfigurableJoint.targetRotation` formula so the fallen torso turns upright; added `headingYaw` update in `Stand()` and `Ground.At` placement in `PlantAt` |
+| 0.7 check | Claude, checked against the code | Kept all of the above except the `headingYaw` writes, which `FixedUpdate` already does every tick. `PlantAt` searches around the sole, not the rig root. The print blend normalises the scaled triplanar normal before the lerp |
 
 ## 18. Sources
 
